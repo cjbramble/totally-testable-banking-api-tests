@@ -4,6 +4,11 @@ version = "0.1.0"
 description = "Independent API automation for Totally Testable Banking"
 requires-python = ">=3.13,<3.14"
 
+dependencies = [
+    "pydantic>=2.11,<3",
+    "pydantic-settings>=2.10,<3",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.4,<9",

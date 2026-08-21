@@ -1,0 +1,21 @@
+[project]
+name = "totally-testable-banking-api-tests"
+version = "0.1.0"
+description = "Independent API automation for Totally Testable Banking"
+requires-python = ">=3.13,<3.14"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4,<9",
+]
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers --strict-config -q"
+testpaths = ["tests"]
+markers = [
+    "smoke: fast checks of essential service behavior",
+    "invariant: checks of durable business invariants",
+    "negative: checks of rejected or invalid requests",
+    "contract: checks of published API contracts",
+    "concurrency: checks involving controlled concurrent actions",
+]

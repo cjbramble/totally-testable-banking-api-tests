@@ -45,3 +45,7 @@ class Settings(BaseSettings):
             raise ValueError("REQUEST_TIMEOUT_SECONDS must be positive")
 
         return value
+
+
+def load_settings() -> Settings:
+    return Settings()  # pyright: ignore[reportCallIssue]

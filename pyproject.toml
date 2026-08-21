@@ -14,9 +14,14 @@ dev = [
     "pytest>=8.4,<9",
 ]
 
+[tool.pyright]
+include = ["src", "tests"]
+extraPaths = ["src"]
+
 [tool.pytest.ini_options]
 addopts = "--strict-markers --strict-config -q"
 testpaths = ["tests"]
+pythonpath = ["src"]
 markers = [
     "smoke: fast checks of essential service behavior",
     "invariant: checks of durable business invariants",

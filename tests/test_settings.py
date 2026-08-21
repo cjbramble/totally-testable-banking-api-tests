@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from totally_testable_banking_api_tests.settings import Settings
+from totally_testable_banking_api_tests.settings import load_settings
 
 
 @pytest.mark.negative
@@ -10,4 +10,4 @@ def test_hosted_target_is_rejected(monkeypatch):
     monkeypatch.setenv("TEST_SUPPORT_TOKEN", "local-token")
 
     with pytest.raises(ValidationError):
-        Settings()
+        load_settings()

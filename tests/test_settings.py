@@ -51,3 +51,12 @@ def test_non_positive_timeout_is_rejected(monkeypatch):
 
     with pytest.raises(ValidationError):
         load_settings()
+
+
+@pytest.mark.negative
+def test_remote_http_target_is_rejected(monkeypatch):
+    monkeypatch.setenv("SUT_BASE_URL", "http://example.com")
+    monkeypatch.setenv("TEST_SUPPORT_TOKEN", "local-token")
+
+    with pytest.raises(ValidationError):
+        load_settings()

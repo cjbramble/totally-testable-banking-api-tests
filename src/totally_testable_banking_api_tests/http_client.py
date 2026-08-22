@@ -6,10 +6,16 @@ class UnexpectedStatusError(RuntimeError):
 
 
 class ApiClient:
-    def __init__(self, base_url: str, timeout: float) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        timeout: float,
+        transport: httpx.BaseTransport | None = None,
+    ) -> None:
         self._client = httpx.Client(
             base_url=base_url,
             timeout=timeout,
+            transport=transport,
         )
 
     def request(

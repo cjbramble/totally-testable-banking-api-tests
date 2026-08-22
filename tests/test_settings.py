@@ -58,5 +58,8 @@ def test_remote_http_target_is_rejected(monkeypatch):
     monkeypatch.setenv("SUT_BASE_URL", "http://example.com")
     monkeypatch.setenv("TEST_SUPPORT_TOKEN", "local-token")
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(
+        ValidationError,
+        match="localhost or 127.0.0.1",
+    ):
         load_settings()

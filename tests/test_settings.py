@@ -60,6 +60,6 @@ def test_remote_http_target_is_rejected(monkeypatch):
 
     with pytest.raises(
         ValidationError,
-        match="localhost or 127.0.0.1",
+        match=r"localhost or 127\.0\.0\.1",
     ):
         load_settings()

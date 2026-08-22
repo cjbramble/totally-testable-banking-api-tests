@@ -45,5 +45,5 @@ class Settings(BaseSettings):
         return value
 
 
-def load_settings() -> Settings:
-    return Settings()  # pyright: ignore[reportCallIssue]
+def load_settings(*, env_file: str | None = ".env") -> Settings:
+    return Settings(_env_file=env_file)  # pyright: ignore[reportCallIssue]

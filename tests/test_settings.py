@@ -31,7 +31,7 @@ def test_missing_test_support_token_is_rejected(monkeypatch):
     monkeypatch.delenv("TEST_SUPPORT_TOKEN", raising=False)
 
     with pytest.raises(ValidationError, match="test_support_token"):
-        load_settings()
+        load_settings(env_file=None)
 
 
 @pytest.mark.negative

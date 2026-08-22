@@ -32,3 +32,12 @@ def test_missing_test_support_token_is_rejected(monkeypatch):
 
     with pytest.raises(ValidationError):
         load_settings()
+
+
+@pytest.mark.negative
+def test_blank_test_support_token_is_rejected(monkeypatch):
+    monkeypatch.delenv("SUT_BASE_URL", raising=False)
+    monkeypatch.setenv("TEST_SUPPORT_TOKEN", "   ")
+
+    with pytest.raises(ValidationError):
+        load_settings()

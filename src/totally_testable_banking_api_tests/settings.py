@@ -24,9 +24,7 @@ class Settings(BaseSettings):
             raise ValueError("SUT_BASE_URL must use plain HTTP")
 
         if parsed.hostname not in {"localhost", "127.0.0.1"}:
-            raise ValueError(
-                "SUT_BASE_URL must target localhost or 127.0.0.1"
-            )
+            raise ValueError("SUT_BASE_URL must target localhost or 127.0.0.1")
 
         return value
 

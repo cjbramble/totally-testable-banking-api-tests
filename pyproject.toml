@@ -12,6 +12,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=8.4,<9",
+    "ruff>=0.12,<1",
 ]
 
 [tool.pyright]
@@ -29,3 +30,10 @@ markers = [
     "contract: checks of published API contracts",
     "concurrency: checks involving controlled concurrent actions",
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]

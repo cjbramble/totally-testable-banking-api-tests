@@ -21,7 +21,7 @@ def test_hosted_target_is_rejected(monkeypatch):
     monkeypatch.setenv("SUT_BASE_URL", "https://example.com")
     monkeypatch.setenv("TEST_SUPPORT_TOKEN", "local-token")
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError, match="plain HTTP"):
         load_settings()
 
 

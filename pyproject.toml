@@ -11,6 +11,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "mypy>=1.17,<2",
     "pytest>=8.4,<9",
     "ruff>=0.12,<1",
 ]
@@ -37,3 +38,10 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+mypy_path = ["src"]
+packages = ["totally_testable_banking_api_tests"]
+plugins = ["pydantic.mypy"]

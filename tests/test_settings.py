@@ -41,3 +41,13 @@ def test_blank_test_support_token_is_rejected(monkeypatch):
 
     with pytest.raises(ValidationError):
         load_settings()
+
+
+@pytest.mark.negative
+def test_non_positive_timeout_is_rejected(monkeypatch):
+    monkeypatch.delenv("SUT_BASE_URL", raising=False)
+    monkeypatch.setenv("TEST_SUPPORT_TOKEN", "local-token")
+    monkeypatch.setenv("REQUEST_TIMEOUT_SECONDS", "0")
+
+    with pytest.raises(ValidationError):
+        load_settings()

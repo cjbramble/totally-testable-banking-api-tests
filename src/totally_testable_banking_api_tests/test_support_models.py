@@ -41,6 +41,27 @@ class CreateRunRequest(BaseModel):
     )
 
 
+class CompletionOutcome(StrEnum):
+    PASSED = "PASSED"
+    FAILED = "FAILED"
+    ABANDONED = "ABANDONED"
+
+
+class CompletionSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tests: int = Field(ge=0, le=1_000_000)
+    failed: int = Field(ge=0, le=1_000_000)
+    note: str | None = Field(default=None, max_length=500)
+
+
+class CompleteRunRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    outcome: CompletionOutcome
+    summary: CompletionSummary | None = None
+
+
 class FixtureUserResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

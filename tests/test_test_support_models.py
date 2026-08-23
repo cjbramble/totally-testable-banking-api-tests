@@ -5,6 +5,9 @@ import pytest
 from pydantic import ValidationError
 
 from totally_testable_banking_api_tests.test_support_models import (
+    CompleteRunRequest,
+    CompletionOutcome,
+    CompletionSummary,
     CreateRunRequest,
     CreateRunResponse,
 )
@@ -63,6 +66,31 @@ def test_create_run_request_rejects_undocumented_fields() -> None:
                 "database_url": "forbidden",
             }
         )
+
+
+@pytest.mark.contract
+def test_complete_run_request_preserves_published_outcome_and_summary() -> None:
+    request = CompleteRunRequest.model_validate(
+        {
+            "outcome": "PASSED",
+            "summary": {"tests": 12, "failed": 0, "note": "All checks passed."},
+        }
+    )
+
+    assert request.outcome is CompletionOutcome.PASSED
+    assert request.summary == CompletionSummary(
+        tests=12,
+        failed=0,
+        note="All checks passed.",
+    )
+
+
+@pytest.mark.contract
+def test_complete_run_request_defaults_summary_to_none() -> None:
+    request = CompleteRunRequest.model_validate({"outcome": "ABANDONED"})
+
+    assert request.outcome is CompletionOutcome.ABANDONED
+    assert request.summary is None
 
 
 @pytest.mark.contract

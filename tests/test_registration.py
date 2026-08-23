@@ -27,6 +27,25 @@ def test_duplicate_email_registration_is_rejected(
 
 @pytest.mark.contract
 @pytest.mark.negative
+def test_case_variant_email_registration_is_rejected(
+    banking_api_client: BankingApiClient,
+    registered_user,
+) -> None:
+    with pytest.raises(UnexpectedStatusError) as exc_info:
+        banking_api_client.register_user(
+            email=registered_user.email.upper(),
+            display_name="Case Variant Test User",
+            password="Case-variant-test-password",
+        )
+
+    error = exc_info.value
+    assert error.status_code == 409
+    assert error.error is not None
+    assert error.error.error.code == "EMAIL_ALREADY_REGISTERED"
+
+
+@pytest.mark.contract
+@pytest.mark.negative
 def test_short_registration_password_is_rejected(
     banking_api_client: BankingApiClient,
 ) -> None:

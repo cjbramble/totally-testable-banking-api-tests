@@ -1,5 +1,6 @@
 import enum
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
@@ -25,3 +26,12 @@ class AccountResponse(BaseModel):
     currency: str
     settled_balance: str
     available_balance: str
+
+
+class UserResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: uuid.UUID
+    email: str
+    display_name: str
+    created_at: datetime

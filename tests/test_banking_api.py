@@ -8,6 +8,47 @@ from totally_testable_banking_api_tests.http_client import ApiClient
 
 
 @pytest.mark.contract
+def test_register_user_sends_product_fields_and_returns_typed_user() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/users"
+        assert json.loads(request.content) == {
+            "email": "new-user@example.com",
+            "display_name": "New User",
+            "password": "correct-horse-battery-staple",
+        }
+        return httpx.Response(
+            201,
+            json={
+                "id": "00000000-0000-4000-8000-000000000001",
+                "email": "new-user@example.com",
+                "display_name": "New User",
+                "created_at": "2026-08-23T12:00:00Z",
+            },
+            request=request,
+        )
+
+    transport = ApiClient(
+        base_url="http://127.0.0.1:8009",
+        timeout=5.0,
+        transport=httpx.MockTransport(handler),
+    )
+    client = BankingApiClient(transport)
+
+    try:
+        user = client.register_user(
+            email="new-user@example.com",
+            display_name="New User",
+            password="correct-horse-battery-staple",
+        )
+    finally:
+        transport.close()
+
+    assert str(user.id) == "00000000-0000-4000-8000-000000000001"
+    assert user.email == "new-user@example.com"
+    assert user.display_name == "New User"
+
+
+@pytest.mark.contract
 def test_login_returns_typed_token_response() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/auth/tokens"

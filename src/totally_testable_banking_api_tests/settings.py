@@ -6,7 +6,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     sut_base_url: str = "http://127.0.0.1:8009"
-    test_support_token: str
     request_timeout_seconds: float = 10.0
 
     model_config = SettingsConfigDict(
@@ -25,14 +24,6 @@ class Settings(BaseSettings):
 
         if parsed.hostname not in {"localhost", "127.0.0.1"}:
             raise ValueError("SUT_BASE_URL must target localhost or 127.0.0.1")
-
-        return value
-
-    @field_validator("test_support_token")
-    @classmethod
-    def validate_test_support_token(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("TEST_SUPPORT_TOKEN must not be blank")
 
         return value
 

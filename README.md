@@ -9,7 +9,6 @@ Requirements:
 - Python 3.13
 - uv
 - a local Totally Testable Banking API
-- local test-support credentials
 
 Create the environment:
 
@@ -24,15 +23,10 @@ Create local configuration from the example:
 cp .env.example .env
 ```
 
-Set `TEST_SUPPORT_TOKEN` in `.env` to the same local test-support token used by
-the running SUT. Never commit `.env` or real credentials.
-
-The SUT must be running locally with test support enabled. From the sibling
-`totally-testable-banking` repository, for example:
+The SUT must be running locally. From the sibling `totally-testable-banking`
+repository:
 
 ```bash
-TEST_SUPPORT_ENABLED=true \
-TEST_SUPPORT_TOKEN=local-only-token \
 make up
 ```
 
@@ -66,3 +60,6 @@ It does not:
 - reset shared state globally;
 - target non-local services;
 - store credentials in the repository.
+
+Live tests register unique users through normal product routes. Registration creates empty
+checking and savings accounts; tests do not depend on the shared demo users.

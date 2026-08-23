@@ -1,3 +1,5 @@
+from collections.abc import Mapping
+
 import httpx
 from pydantic import ValidationError
 
@@ -45,8 +47,9 @@ class ApiClient:
         path: str,
         *,
         expected_status: int,
+        headers: Mapping[str, str] | None = None,
     ) -> httpx.Response:
-        response = self._client.request(method, path)
+        response = self._client.request(method, path, headers=headers)
 
         if response.status_code != expected_status:
             raise UnexpectedStatusError(response, method=method)

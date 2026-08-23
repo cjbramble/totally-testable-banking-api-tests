@@ -28,7 +28,12 @@ def test_request_returns_response_when_status_matches() -> None:
 
 def test_request_raises_for_unexpected_status() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(503, request=request)
+        return httpx.Response(
+            503,
+            text="service unavailable",
+            headers={"content-type": "text/plain"},
+            request=request,
+        )
 
     client = ApiClient(
         base_url="http://127.0.0.1:8009",
@@ -37,10 +42,14 @@ def test_request_raises_for_unexpected_status() -> None:
     )
 
     try:
-        with pytest.raises(
-            UnexpectedStatusError,
-            match=r"Expected HTTP 200, got 503",
-        ):
+        with pytest.raises(UnexpectedStatusError) as exc_info:
             client.request("GET", "/health", expected_status=200)
     finally:
         client.close()
+
+    error = exc_info.value
+    assert error.method == "GET"
+    assert error.url == "http://127.0.0.1:8009/health"
+    assert error.status_code == 503
+    assert error.content_type == "text/plain"
+    assert error.body == "service unavailable"

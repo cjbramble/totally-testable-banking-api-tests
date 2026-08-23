@@ -1,4 +1,4 @@
-from totally_testable_banking_api_tests.api_models import TokenResponse
+from totally_testable_banking_api_tests.api_models import AccountResponse, TokenResponse
 from totally_testable_banking_api_tests.http_client import ApiClient
 
 
@@ -16,3 +16,12 @@ class BankingApiClient:
             json_body={"email": email, "password": password},
         )
         return TokenResponse.model_validate(response.json())
+
+    def list_accounts(self, *, access_token: str) -> list[AccountResponse]:
+        response = self._transport.request(
+            "GET",
+            "/api/v1/accounts",
+            expected_status=200,
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        return [AccountResponse.model_validate(item) for item in response.json()]

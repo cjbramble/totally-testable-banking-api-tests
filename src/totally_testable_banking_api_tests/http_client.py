@@ -48,8 +48,14 @@ class ApiClient:
         *,
         expected_status: int,
         headers: Mapping[str, str] | None = None,
+        json_body: Mapping[str, object] | None = None,
     ) -> httpx.Response:
-        response = self._client.request(method, path, headers=headers)
+        response = self._client.request(
+            method,
+            path,
+            headers=headers,
+            json=json_body,
+        )
 
         if response.status_code != expected_status:
             raise UnexpectedStatusError(response, method=method)

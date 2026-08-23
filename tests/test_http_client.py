@@ -1,3 +1,5 @@
+import json
+
 import httpx
 import pytest
 
@@ -43,6 +45,37 @@ def test_request_sends_headers() -> None:
             "/health",
             expected_status=200,
             headers={"Authorization": "Bearer test-token"},
+        )
+    finally:
+        client.close()
+
+    assert response.status_code == 200
+
+
+def test_request_sends_json_body() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert json.loads(request.content) == {
+            "email": "alice@example.test",
+            "password": "correct-horse-battery-staple",
+        }
+        assert request.headers["content-type"] == "application/json"
+        return httpx.Response(200, json={"access_token": "token"}, request=request)
+
+    client = ApiClient(
+        base_url="http://127.0.0.1:8009",
+        timeout=5.0,
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        response = client.request(
+            "POST",
+            "/api/v1/auth/tokens",
+            expected_status=200,
+            json_body={
+                "email": "alice@example.test",
+                "password": "correct-horse-battery-staple",
+            },
         )
     finally:
         client.close()

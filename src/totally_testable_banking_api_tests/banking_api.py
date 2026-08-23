@@ -1,3 +1,5 @@
+import uuid
+
 from totally_testable_banking_api_tests.api_models import (
     AccountResponse,
     TokenResponse,
@@ -48,3 +50,17 @@ class BankingApiClient:
             headers={"Authorization": f"Bearer {access_token}"},
         )
         return [AccountResponse.model_validate(item) for item in response.json()]
+
+    def get_account(
+        self,
+        *,
+        account_id: uuid.UUID,
+        access_token: str,
+    ) -> AccountResponse:
+        response = self._transport.request(
+            "GET",
+            f"/api/v1/accounts/{account_id}",
+            expected_status=200,
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        return AccountResponse.model_validate(response.json())

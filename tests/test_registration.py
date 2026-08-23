@@ -60,3 +60,21 @@ def test_short_registration_password_is_rejected(
     assert error.status_code == 422
     assert error.error is not None
     assert error.error.error.code == "VALIDATION_ERROR"
+
+
+@pytest.mark.contract
+@pytest.mark.negative
+def test_malformed_registration_email_is_rejected(
+    banking_api_client: BankingApiClient,
+) -> None:
+    with pytest.raises(UnexpectedStatusError) as exc_info:
+        banking_api_client.register_user(
+            email=f"api-test-user-{uuid4().hex}",
+            display_name="Test User",
+            password="Valid-test-password",
+        )
+
+    error = exc_info.value
+    assert error.status_code == 422
+    assert error.error is not None
+    assert error.error.error.code == "VALIDATION_ERROR"

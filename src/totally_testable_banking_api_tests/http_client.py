@@ -1,4 +1,7 @@
 import httpx
+from pydantic import ValidationError
+
+from totally_testable_banking_api_tests.error_models import ErrorResponse
 
 
 class UnexpectedStatusError(RuntimeError):
@@ -10,11 +13,17 @@ class UnexpectedStatusError(RuntimeError):
         self.status_code = response.status_code
         self.content_type = response.headers.get("content-type", "")
         self.body = response.text[:500]
+        try:
+            self.error: ErrorResponse | None = ErrorResponse.model_validate_json(response.content)
+        except (ValidationError, ValueError):
+            self.error = None
 
-        super().__init__(
-            f"{method} {self.url} returned HTTP {self.status_code}; "
-            f"content-type={self.content_type!r}; body={self.body!r}"
-        )
+        if self.error is not None:
+            detail = f"code={self.error.error.code!r}; message={self.error.error.message!r}"
+        else:
+            detail = f"content-type={self.content_type!r}; body={self.body!r}"
+
+        super().__init__(f"{method} {self.url} returned HTTP {self.status_code}; {detail}")
 
 
 class ApiClient:

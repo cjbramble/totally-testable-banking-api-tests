@@ -4,7 +4,65 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
-from totally_testable_banking_api_tests.test_support_models import CreateRunResponse
+from totally_testable_banking_api_tests.test_support_models import (
+    CreateRunRequest,
+    CreateRunResponse,
+)
+from totally_testable_banking_api_tests.test_support_models import TestRunSuite as RunSuite
+
+
+@pytest.mark.contract
+def test_create_run_request_uses_published_defaults() -> None:
+    request = CreateRunRequest.model_validate(
+        {
+            "external_name": "api-learning-run",
+            "suite": "API",
+            "fixture_template": "STANDARD_P2P",
+            "users": [
+                {
+                    "alias": "alice",
+                    "checking_balance": "1000.00",
+                    "savings_balance": "500.00",
+                },
+                {
+                    "alias": "bob",
+                    "checking_balance": "1000.00",
+                    "savings_balance": "500.00",
+                },
+            ],
+        }
+    )
+
+    assert request.suite is RunSuite.API
+    assert request.fixture_template == "STANDARD_P2P"
+    assert request.ttl_minutes == 120
+    assert request.worker_id is None
+    assert [user.alias for user in request.users] == ["alice", "bob"]
+
+
+@pytest.mark.contract
+def test_create_run_request_rejects_undocumented_fields() -> None:
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        CreateRunRequest.model_validate(
+            {
+                "external_name": "api-learning-run",
+                "suite": "API",
+                "fixture_template": "STANDARD_P2P",
+                "users": [
+                    {
+                        "alias": "alice",
+                        "checking_balance": "1000.00",
+                        "savings_balance": "500.00",
+                    },
+                    {
+                        "alias": "bob",
+                        "checking_balance": "1000.00",
+                        "savings_balance": "500.00",
+                    },
+                ],
+                "database_url": "forbidden",
+            }
+        )
 
 
 @pytest.mark.contract

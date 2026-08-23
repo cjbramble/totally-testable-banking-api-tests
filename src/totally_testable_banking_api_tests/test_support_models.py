@@ -62,6 +62,47 @@ class CompleteRunRequest(BaseModel):
     summary: CompletionSummary | None = None
 
 
+class TestRunStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    PASSED = "PASSED"
+    FAILED = "FAILED"
+    ABANDONED = "ABANDONED"
+    EXPIRED = "EXPIRED"
+
+
+class RunCountsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    users: int
+    funding_journals: int
+    transfers: int
+
+
+class RunUserResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    user_id: uuid.UUID
+    email: str
+    checking_account_id: uuid.UUID
+    savings_account_id: uuid.UUID
+
+
+class RunResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    run_id: uuid.UUID
+    external_name: str
+    suite: TestRunSuite
+    worker_id: str | None
+    status: TestRunStatus
+    created_at: datetime
+    expires_at: datetime
+    completed_at: datetime | None
+    completion_summary: CompletionSummary | None
+    users: dict[str, RunUserResponse]
+    counts: RunCountsResponse
+
+
 class FixtureUserResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

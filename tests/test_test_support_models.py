@@ -10,8 +10,11 @@ from totally_testable_banking_api_tests.test_support_models import (
     CompletionSummary,
     CreateRunRequest,
     CreateRunResponse,
+    RunResponse,
 )
-from totally_testable_banking_api_tests.test_support_models import TestRunSuite as RunSuite
+from totally_testable_banking_api_tests.test_support_models import (
+    TestRunStatus as RunStatus,
+)
 
 
 @pytest.mark.contract
@@ -36,7 +39,7 @@ def test_create_run_request_uses_published_defaults() -> None:
         }
     )
 
-    assert request.suite is RunSuite.API
+    assert request.suite.value == "API"
     assert request.fixture_template == "STANDARD_P2P"
     assert request.ttl_minutes == 120
     assert request.worker_id is None
@@ -91,6 +94,62 @@ def test_complete_run_request_defaults_summary_to_none() -> None:
 
     assert request.outcome is CompletionOutcome.ABANDONED
     assert request.summary is None
+
+
+@pytest.mark.contract
+def test_run_response_parses_terminal_status_and_observation_data() -> None:
+    run = RunResponse.model_validate(
+        {
+            "run_id": "00000000-0000-0000-0000-000000000010",
+            "external_name": "api-learning-run",
+            "suite": "API",
+            "worker_id": None,
+            "status": "PASSED",
+            "created_at": "2026-08-22T10:00:00Z",
+            "expires_at": "2026-08-22T12:00:00Z",
+            "completed_at": "2026-08-22T10:05:00Z",
+            "completion_summary": {"tests": 12, "failed": 0, "note": "Passed."},
+            "users": {
+                "alice": {
+                    "user_id": "00000000-0000-0000-0000-000000000011",
+                    "email": "alice@example.com",
+                    "checking_account_id": "00000000-0000-0000-0000-000000000012",
+                    "savings_account_id": "00000000-0000-0000-0000-000000000013",
+                }
+            },
+            "counts": {"users": 1, "funding_journals": 2, "transfers": 0},
+        }
+    )
+
+    assert run.status is RunStatus.PASSED
+    assert run.completed_at is not None
+    assert run.completion_summary is not None
+    assert run.completion_summary.failed == 0
+    assert run.users["alice"].checking_account_id == uuid.UUID(
+        "00000000-0000-0000-0000-000000000012"
+    )
+    assert run.counts.funding_journals == 2
+
+
+@pytest.mark.contract
+def test_run_response_rejects_undocumented_fields() -> None:
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        RunResponse.model_validate(
+            {
+                "run_id": "00000000-0000-0000-0000-000000000010",
+                "external_name": "api-learning-run",
+                "suite": "API",
+                "worker_id": None,
+                "status": "ACTIVE",
+                "created_at": "2026-08-22T10:00:00Z",
+                "expires_at": "2026-08-22T12:00:00Z",
+                "completed_at": None,
+                "completion_summary": None,
+                "users": {},
+                "counts": {"users": 0, "funding_journals": 0, "transfers": 0},
+                "database_url": "forbidden",
+            }
+        )
 
 
 @pytest.mark.contract

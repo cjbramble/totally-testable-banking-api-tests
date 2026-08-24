@@ -18,6 +18,12 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class SessionResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expires_in: int
+
+
 class AccountResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

@@ -2,6 +2,7 @@ import uuid
 
 from totally_testable_banking_api_tests.api_models import (
     AccountResponse,
+    SessionResponse,
     TokenResponse,
     UserResponse,
 )
@@ -41,6 +42,23 @@ class BankingApiClient:
             json_body={"email": email, "password": password},
         )
         return TokenResponse.model_validate(response.json())
+
+    def create_browser_session(self, *, email: str, password: str) -> SessionResponse:
+        response = self._transport.request(
+            "POST",
+            "/api/v1/auth/session",
+            expected_status=200,
+            json_body={"email": email, "password": password},
+        )
+        return SessionResponse.model_validate(response.json())
+
+    def read_browser_session(self) -> UserResponse:
+        response = self._transport.request(
+            "GET",
+            "/api/v1/auth/session",
+            expected_status=200,
+        )
+        return UserResponse.model_validate(response.json())
 
     def list_accounts(self, *, access_token: str) -> list[AccountResponse]:
         response = self._transport.request(

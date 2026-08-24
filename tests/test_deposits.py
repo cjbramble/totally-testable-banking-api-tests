@@ -1,3 +1,4 @@
+import time
 from uuid import uuid4
 
 import pytest
@@ -103,3 +104,46 @@ def test_outsider_cannot_retrieve_another_users_deposit(
     assert error.status_code == 404
     assert error.error is not None
     assert error.error.error.code == "DEPOSIT_NOT_FOUND"
+
+
+@pytest.mark.contract
+def test_deposit_settlement_is_observable_with_bounded_polling(
+    banking_api_client: BankingApiClient,
+    registered_user,
+) -> None:
+    token = banking_api_client.login(
+        email=registered_user.email,
+        password=registered_user.password,
+    )
+    account = banking_api_client.list_accounts(access_token=token.access_token)[0]
+    assert account.settled_balance == "0.00"
+    assert account.available_balance == "0.00"
+
+    deposit = banking_api_client.create_deposit(
+        destination_account_id=account.id,
+        amount="100.00",
+        access_token=token.access_token,
+        idempotency_key=f"deposit-{uuid4()}",
+    )
+    deadline = time.monotonic() + 10.0
+
+    while True:
+        current = banking_api_client.get_deposit(
+            instruction_id=deposit.id,
+            access_token=token.access_token,
+        )
+        if current.status == "SETTLED":
+            break
+        if current.status == "FAILED":
+            pytest.fail(f"Deposit failed with {current.failure_code!r}")
+        if time.monotonic() >= deadline:
+            pytest.fail(f"Deposit did not settle; final status was {current.status!r}")
+        time.sleep(0.1)
+
+    assert current.completed_at is not None
+    settled_account = banking_api_client.list_accounts(
+        access_token=token.access_token,
+    )[0]
+    assert settled_account.id == account.id
+    assert settled_account.settled_balance == "100.00"
+    assert settled_account.available_balance == "100.00"

@@ -64,3 +64,6 @@ class ApiClient:
 
     def close(self) -> None:
         self._client.close()
+
+    def cookie_value(self, name: str) -> str | None:
+        return self._client.cookies.get(name)

@@ -8,6 +8,8 @@ from totally_testable_banking_api_tests.api_models import (
 )
 from totally_testable_banking_api_tests.http_client import ApiClient
 
+CSRF_COOKIE_NAME = "ttb_csrf"
+
 
 class BankingApiClient:
     """Operations against the internal banking product API contract."""
@@ -59,6 +61,18 @@ class BankingApiClient:
             expected_status=200,
         )
         return UserResponse.model_validate(response.json())
+
+    def delete_browser_session(self) -> None:
+        csrf_token = self._transport.cookie_value(CSRF_COOKIE_NAME)
+        if csrf_token is None:
+            raise RuntimeError("Browser session did not provide a CSRF cookie")
+
+        self._transport.request(
+            "DELETE",
+            "/api/v1/auth/session",
+            expected_status=204,
+            headers={"X-CSRF-Token": csrf_token},
+        )
 
     def list_accounts(self, *, access_token: str) -> list[AccountResponse]:
         response = self._transport.request(

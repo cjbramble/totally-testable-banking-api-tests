@@ -9,7 +9,7 @@ from totally_testable_banking_api_tests.settings import load_settings
 
 @pytest.mark.contract
 @pytest.mark.negative
-def test_unauthenticated_accounts_request_returns_published_error() -> None:
+def test_unauthenticated_accounts_request_returns_authentication_error() -> None:
     settings = load_settings()
     client = ApiClient(
         base_url=settings.sut_base_url,

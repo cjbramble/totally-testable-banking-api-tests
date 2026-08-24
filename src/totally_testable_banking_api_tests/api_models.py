@@ -1,6 +1,6 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict
 
@@ -44,6 +44,24 @@ class DepositResponse(BaseModel):
     status: str
     failure_code: str | None
     created_at: datetime
+    completed_at: datetime | None
+
+
+class TransferResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: uuid.UUID
+    sender_user_id: uuid.UUID
+    recipient_user_id: uuid.UUID
+    source_account_id: uuid.UUID
+    destination_account_id: uuid.UUID
+    amount: str
+    currency: str
+    status: str
+    transfer_kind: str
+    created_at: datetime
+    scheduled_for: date | None
+    failure_code: str | None
     completed_at: datetime | None
 
 

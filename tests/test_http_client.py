@@ -28,7 +28,7 @@ def test_request_returns_response_when_status_matches() -> None:
     assert response.json() == {"status": "ready"}
 
 
-def test_request_sends_headers() -> None:
+def test_request_forwards_headers() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.headers["Authorization"] == "Bearer test-token"
         return httpx.Response(200, json={"status": "ready"}, request=request)
@@ -52,7 +52,7 @@ def test_request_sends_headers() -> None:
     assert response.status_code == 200
 
 
-def test_request_sends_json_body() -> None:
+def test_request_serializes_json_body() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert json.loads(request.content) == {
             "email": "alice@example.test",

@@ -11,7 +11,7 @@ from totally_testable_banking_api_tests.api_models import (
 
 
 @pytest.mark.contract
-def test_token_response_uses_published_defaults() -> None:
+def test_token_response_defaults_token_type_to_bearer() -> None:
     token = TokenResponse.model_validate({"access_token": "token-value", "expires_in": 1800})
 
     assert token.access_token == "token-value"
@@ -20,7 +20,7 @@ def test_token_response_uses_published_defaults() -> None:
 
 
 @pytest.mark.contract
-def test_account_response_parses_published_types() -> None:
+def test_account_response_parses_uuid_and_account_type() -> None:
     account = AccountResponse.model_validate(
         {
             "id": "00000000-0000-0000-0000-000000000001",

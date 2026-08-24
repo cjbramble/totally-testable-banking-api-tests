@@ -8,7 +8,7 @@ from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 
 
 @pytest.mark.contract
-def test_owned_account_accepts_a_deposit_request(
+def test_deposit_request_for_owned_account_is_accepted(
     banking_api_client: BankingApiClient,
     registered_user,
 ) -> None:
@@ -107,7 +107,7 @@ def test_outsider_cannot_retrieve_another_users_deposit(
 
 
 @pytest.mark.contract
-def test_deposit_settlement_is_observable_with_bounded_polling(
+def test_deposit_settlement_updates_account_balances(
     banking_api_client: BankingApiClient,
     registered_user,
 ) -> None:

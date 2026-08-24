@@ -1,4 +1,5 @@
 import json
+import uuid
 
 import httpx
 import pytest
@@ -8,7 +9,7 @@ from totally_testable_banking_api_tests.http_client import ApiClient
 
 
 @pytest.mark.contract
-def test_register_user_sends_product_fields_and_returns_typed_user() -> None:
+def test_register_user_sends_registration_payload_and_parses_user_response() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/users"
         assert json.loads(request.content) == {
@@ -49,7 +50,7 @@ def test_register_user_sends_product_fields_and_returns_typed_user() -> None:
 
 
 @pytest.mark.contract
-def test_login_returns_typed_token_response() -> None:
+def test_login_parses_token_response() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/auth/tokens"
         assert json.loads(request.content) == {
@@ -86,7 +87,7 @@ def test_login_returns_typed_token_response() -> None:
 
 
 @pytest.mark.contract
-def test_list_accounts_sends_bearer_token_and_returns_typed_accounts() -> None:
+def test_list_accounts_sends_bearer_token_and_parses_account_responses() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/accounts"
         assert request.headers["Authorization"] == "Bearer access-token"
@@ -127,3 +128,57 @@ def test_list_accounts_sends_bearer_token_and_returns_typed_accounts() -> None:
     assert accounts[0].account_type.value == "CHECKING"
     assert accounts[1].account_type.value == "SAVINGS"
     assert accounts[0].settled_balance == "1000.00"
+
+
+@pytest.mark.contract
+def test_create_transfer_sends_request_and_parses_transfer_response() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/transfers"
+        assert request.headers["Authorization"] == "Bearer access-token"
+        assert request.headers["Idempotency-Key"] == "transfer-key"
+        assert json.loads(request.content) == {
+            "source_account_id": "00000000-0000-0000-0000-000000000001",
+            "destination_account_id": "00000000-0000-0000-0000-000000000002",
+            "amount": "25.00",
+        }
+        return httpx.Response(
+            201,
+            json={
+                "id": "00000000-0000-4000-8000-000000000003",
+                "sender_user_id": "00000000-0000-4000-8000-000000000004",
+                "recipient_user_id": "00000000-0000-4000-8000-000000000005",
+                "source_account_id": "00000000-0000-0000-0000-000000000001",
+                "destination_account_id": "00000000-0000-0000-0000-000000000002",
+                "amount": "25.00",
+                "currency": "USD",
+                "status": "POSTED",
+                "transfer_kind": "P2P",
+                "created_at": "2026-08-23T12:00:00Z",
+                "scheduled_for": None,
+                "failure_code": None,
+                "completed_at": "2026-08-23T12:00:00Z",
+            },
+            request=request,
+        )
+
+    transport = ApiClient(
+        base_url="http://127.0.0.1:8009",
+        timeout=5.0,
+        transport=httpx.MockTransport(handler),
+    )
+    client = BankingApiClient(transport)
+
+    try:
+        transfer = client.create_transfer(
+            source_account_id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
+            destination_account_id=uuid.UUID("00000000-0000-0000-0000-000000000002"),
+            amount="25.00",
+            access_token="access-token",
+            idempotency_key="transfer-key",
+        )
+    finally:
+        transport.close()
+
+    assert str(transfer.id) == "00000000-0000-4000-8000-000000000003"
+    assert transfer.amount == "25.00"
+    assert transfer.transfer_kind == "P2P"

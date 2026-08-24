@@ -5,7 +5,7 @@ from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 
 
 @pytest.mark.contract
-def test_browser_session_cookie_supports_session_read(
+def test_browser_session_persists_cookie_for_session_read(
     banking_api_client: BankingApiClient,
     registered_user,
 ) -> None:
@@ -23,7 +23,7 @@ def test_browser_session_cookie_supports_session_read(
 
 @pytest.mark.contract
 @pytest.mark.negative
-def test_deleted_browser_session_is_no_longer_authenticated(
+def test_logout_invalidates_browser_session(
     banking_api_client: BankingApiClient,
     registered_user,
 ) -> None:

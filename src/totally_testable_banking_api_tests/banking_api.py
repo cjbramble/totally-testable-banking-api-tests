@@ -121,3 +121,17 @@ class BankingApiClient:
             },
         )
         return DepositResponse.model_validate(response.json())
+
+    def get_deposit(
+        self,
+        *,
+        instruction_id: uuid.UUID,
+        access_token: str,
+    ) -> DepositResponse:
+        response = self._transport.request(
+            "GET",
+            f"/api/v1/deposits/{instruction_id}",
+            expected_status=200,
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        return DepositResponse.model_validate(response.json())

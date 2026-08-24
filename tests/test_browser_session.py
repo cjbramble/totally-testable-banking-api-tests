@@ -40,3 +40,23 @@ def test_deleted_browser_session_is_no_longer_authenticated(
     assert error.status_code == 401
     assert error.error is not None
     assert error.error.error.code == "AUTHENTICATION_REQUIRED"
+
+
+@pytest.mark.contract
+@pytest.mark.negative
+def test_invalid_csrf_token_is_rejected(
+    banking_api_client: BankingApiClient,
+    registered_user,
+) -> None:
+    banking_api_client.create_browser_session(
+        email=registered_user.email,
+        password=registered_user.password,
+    )
+
+    with pytest.raises(UnexpectedStatusError) as exc_info:
+        banking_api_client.delete_browser_session(csrf_token="invalid-csrf-token")
+
+    error = exc_info.value
+    assert error.status_code == 403
+    assert error.error is not None
+    assert error.error.error.code == "CSRF_VALIDATION_FAILED"

@@ -62,8 +62,9 @@ class BankingApiClient:
         )
         return UserResponse.model_validate(response.json())
 
-    def delete_browser_session(self) -> None:
-        csrf_token = self._transport.cookie_value(CSRF_COOKIE_NAME)
+    def delete_browser_session(self, *, csrf_token: str | None = None) -> None:
+        if csrf_token is None:
+            csrf_token = self._transport.cookie_value(CSRF_COOKIE_NAME)
         if csrf_token is None:
             raise RuntimeError("Browser session did not provide a CSRF cookie")
 

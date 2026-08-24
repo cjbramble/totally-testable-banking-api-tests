@@ -2,6 +2,7 @@ import uuid
 
 from totally_testable_banking_api_tests.api_models import (
     AccountResponse,
+    DepositResponse,
     SessionResponse,
     TokenResponse,
     UserResponse,
@@ -97,3 +98,26 @@ class BankingApiClient:
             headers={"Authorization": f"Bearer {access_token}"},
         )
         return AccountResponse.model_validate(response.json())
+
+    def create_deposit(
+        self,
+        *,
+        destination_account_id: uuid.UUID,
+        amount: str,
+        access_token: str,
+        idempotency_key: str,
+    ) -> DepositResponse:
+        response = self._transport.request(
+            "POST",
+            "/api/v1/deposits",
+            expected_status=202,
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Idempotency-Key": idempotency_key,
+            },
+            json_body={
+                "destination_account_id": str(destination_account_id),
+                "amount": amount,
+            },
+        )
+        return DepositResponse.model_validate(response.json())

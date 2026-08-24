@@ -34,6 +34,19 @@ class AccountResponse(BaseModel):
     available_balance: str
 
 
+class DepositResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: uuid.UUID
+    destination_account_id: uuid.UUID
+    amount: str
+    currency: str
+    status: str
+    failure_code: str | None
+    created_at: datetime
+    completed_at: datetime | None
+
+
 class UserResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

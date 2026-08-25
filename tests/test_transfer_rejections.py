@@ -91,6 +91,7 @@ def test_invalid_amount_transfer_is_rejected_without_balance_effect(
     [
         pytest.param(None, "IDEMPOTENCY_KEY_REQUIRED", id="missing"),
         pytest.param("", "IDEMPOTENCY_KEY_INVALID", id="empty"),
+        pytest.param("transfer key", "IDEMPOTENCY_KEY_INVALID", id="malformed"),
     ],
 )
 def test_invalid_idempotency_key_is_rejected_without_balance_effect(

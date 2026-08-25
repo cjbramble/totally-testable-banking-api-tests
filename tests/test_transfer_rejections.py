@@ -87,6 +87,12 @@ def test_invalid_amount_transfer_is_rejected_without_balance_effect(
         recipient_account.settled_balance,
         recipient_account.available_balance,
     )
+    sender_activity_before = banking_api_client.list_activity(
+        access_token=sender_token.access_token,
+    ).items
+    recipient_activity_before = banking_api_client.list_activity(
+        access_token=recipient_token.access_token,
+    ).items
 
     with pytest.raises(UnexpectedStatusError) as exc_info:
         banking_api_client.create_transfer(
@@ -108,11 +114,19 @@ def test_invalid_amount_transfer_is_rejected_without_balance_effect(
     recipient_after = banking_api_client.list_accounts(
         access_token=recipient_token.access_token,
     )[0]
+    sender_activity_after = banking_api_client.list_activity(
+        access_token=sender_token.access_token,
+    ).items
+    recipient_activity_after = banking_api_client.list_activity(
+        access_token=recipient_token.access_token,
+    ).items
     assert (sender_after.settled_balance, sender_after.available_balance) == sender_before
     assert (
         recipient_after.settled_balance,
         recipient_after.available_balance,
     ) == recipient_before
+    assert sender_activity_after == sender_activity_before
+    assert recipient_activity_after == recipient_activity_before
 
 
 @pytest.mark.contract

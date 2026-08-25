@@ -1,5 +1,7 @@
 """Live withdrawal acceptance and lifecycle tests."""
 
+import time
+from decimal import Decimal
 from uuid import uuid4
 
 import pytest
@@ -89,3 +91,46 @@ def test_outsider_cannot_retrieve_another_users_withdrawal(
     assert error.status_code == 404
     assert error.error is not None
     assert error.error.error.code == "WITHDRAWAL_NOT_FOUND"
+
+
+@pytest.mark.contract
+@pytest.mark.invariant
+def test_withdrawal_settlement_updates_account_balances(
+    banking_api_client: BankingApiClient,
+    funded_account,
+) -> None:
+    withdrawal_amount = Decimal("25.00")
+    account_before = funded_account.account
+    withdrawal = banking_api_client.create_withdrawal(
+        source_account_id=account_before.id,
+        amount=str(withdrawal_amount),
+        access_token=funded_account.access_token,
+        idempotency_key=f"withdrawal-{uuid4()}",
+    )
+    deadline = time.monotonic() + 10.0
+
+    while True:
+        current = banking_api_client.get_withdrawal(
+            instruction_id=withdrawal.id,
+            access_token=funded_account.access_token,
+        )
+        if current.status == "SETTLED":
+            break
+        if current.status == "FAILED":
+            pytest.fail(f"Withdrawal failed with {current.failure_code!r}")
+        if time.monotonic() >= deadline:
+            pytest.fail(f"Withdrawal did not settle; final status was {current.status!r}")
+        time.sleep(0.1)
+
+    account_after = banking_api_client.get_account(
+        account_id=account_before.id,
+        access_token=funded_account.access_token,
+    )
+
+    assert current.completed_at is not None
+    assert Decimal(account_after.settled_balance) == (
+        Decimal(account_before.settled_balance) - withdrawal_amount
+    )
+    assert Decimal(account_after.available_balance) == (
+        Decimal(account_before.available_balance) - withdrawal_amount
+    )

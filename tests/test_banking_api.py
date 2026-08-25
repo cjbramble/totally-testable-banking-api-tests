@@ -182,3 +182,56 @@ def test_create_transfer_sends_request_and_parses_transfer_response() -> None:
     assert str(transfer.id) == "00000000-0000-4000-8000-000000000003"
     assert transfer.amount == "25.00"
     assert transfer.transfer_kind == "P2P"
+
+
+@pytest.mark.contract
+def test_list_activity_sends_pagination_and_parses_page() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/activity"
+        assert request.headers["Authorization"] == "Bearer access-token"
+        assert request.url.params["limit"] == "2"
+        assert request.url.params["cursor"] == "opaque-cursor"
+        return httpx.Response(
+            200,
+            json={
+                "items": [
+                    {
+                        "operation_id": "00000000-0000-4000-8000-000000000003",
+                        "kind": "TRANSFER",
+                        "direction": "SENT",
+                        "account_id": "00000000-0000-0000-0000-000000000001",
+                        "counterparty_user_id": "00000000-0000-4000-8000-000000000005",
+                        "amount": "25.00",
+                        "currency": "USD",
+                        "status": "POSTED",
+                        "failure_code": None,
+                        "created_at": "2026-08-23T12:00:00Z",
+                        "completed_at": "2026-08-23T12:00:00Z",
+                        "scheduled_for": None,
+                    }
+                ],
+                "next_cursor": "next-opaque-cursor",
+            },
+            request=request,
+        )
+
+    transport = ApiClient(
+        base_url="http://127.0.0.1:8009",
+        timeout=5.0,
+        transport=httpx.MockTransport(handler),
+    )
+    client = BankingApiClient(transport)
+
+    try:
+        page = client.list_activity(
+            access_token="access-token",
+            limit=2,
+            cursor="opaque-cursor",
+        )
+    finally:
+        transport.close()
+
+    assert len(page.items) == 1
+    assert page.items[0].direction.value == "SENT"
+    assert page.items[0].amount == "25.00"
+    assert page.next_cursor == "next-opaque-cursor"

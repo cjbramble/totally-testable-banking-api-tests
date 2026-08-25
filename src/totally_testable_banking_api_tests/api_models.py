@@ -10,6 +10,20 @@ class ProductAccountType(enum.StrEnum):
     SAVINGS = "SAVINGS"
 
 
+class ActivityDirection(enum.StrEnum):
+    SENT = "SENT"
+    RECEIVED = "RECEIVED"
+    CREDIT = "CREDIT"
+    DEBIT = "DEBIT"
+
+
+class ActivityKind(enum.StrEnum):
+    TRANSFER = "TRANSFER"
+    ACCOUNT_TRANSFER = "ACCOUNT_TRANSFER"
+    DEPOSIT = "DEPOSIT"
+    WITHDRAWAL = "WITHDRAWAL"
+
+
 class TokenResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -63,6 +77,30 @@ class TransferResponse(BaseModel):
     scheduled_for: date | None
     failure_code: str | None
     completed_at: datetime | None
+
+
+class ActivityItemResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    operation_id: uuid.UUID
+    kind: ActivityKind
+    direction: ActivityDirection
+    account_id: uuid.UUID
+    counterparty_user_id: uuid.UUID | None
+    amount: str
+    currency: str
+    status: str
+    failure_code: str | None
+    created_at: datetime
+    completed_at: datetime | None
+    scheduled_for: date | None
+
+
+class ActivityPageResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[ActivityItemResponse]
+    next_cursor: str | None
 
 
 class UserResponse(BaseModel):

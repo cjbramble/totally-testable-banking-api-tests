@@ -48,12 +48,14 @@ class ApiClient:
         *,
         expected_status: int,
         headers: Mapping[str, str] | None = None,
+        params: Mapping[str, str | int] | None = None,
         json_body: Mapping[str, object] | None = None,
     ) -> httpx.Response:
         response = self._client.request(
             method,
             path,
             headers=headers,
+            params=params,
             json=json_body,
         )
 

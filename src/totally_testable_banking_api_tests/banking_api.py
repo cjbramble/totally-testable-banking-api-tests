@@ -2,6 +2,7 @@ import uuid
 
 from totally_testable_banking_api_tests.api_models import (
     AccountResponse,
+    ActivityPageResponse,
     DepositResponse,
     SessionResponse,
     TokenResponse,
@@ -85,6 +86,26 @@ class BankingApiClient:
             headers={"Authorization": f"Bearer {access_token}"},
         )
         return [AccountResponse.model_validate(item) for item in response.json()]
+
+    def list_activity(
+        self,
+        *,
+        access_token: str,
+        limit: int = 20,
+        cursor: str | None = None,
+    ) -> ActivityPageResponse:
+        params: dict[str, str | int] = {"limit": limit}
+        if cursor is not None:
+            params["cursor"] = cursor
+
+        response = self._transport.request(
+            "GET",
+            "/api/v1/activity",
+            expected_status=200,
+            headers={"Authorization": f"Bearer {access_token}"},
+            params=params,
+        )
+        return ActivityPageResponse.model_validate(response.json())
 
     def get_account(
         self,

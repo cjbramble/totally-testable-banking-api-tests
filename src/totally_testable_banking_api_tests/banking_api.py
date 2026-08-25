@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import Mapping
 
 from totally_testable_banking_api_tests.api_models import (
     AccountResponse,
@@ -167,6 +168,23 @@ class BankingApiClient:
         access_token: str,
         idempotency_key: str | None,
     ) -> TransferResponse:
+        return self.create_transfer_from_payload(
+            payload={
+                "source_account_id": str(source_account_id),
+                "destination_account_id": str(destination_account_id),
+                "amount": amount,
+            },
+            access_token=access_token,
+            idempotency_key=idempotency_key,
+        )
+
+    def create_transfer_from_payload(
+        self,
+        *,
+        payload: Mapping[str, object],
+        access_token: str,
+        idempotency_key: str | None,
+    ) -> TransferResponse:
         headers = {"Authorization": f"Bearer {access_token}"}
         if idempotency_key is not None:
             headers["Idempotency-Key"] = idempotency_key
@@ -176,11 +194,7 @@ class BankingApiClient:
             "/api/v1/transfers",
             expected_status=201,
             headers=headers,
-            json_body={
-                "source_account_id": str(source_account_id),
-                "destination_account_id": str(destination_account_id),
-                "amount": amount,
-            },
+            json_body=payload,
         )
         return TransferResponse.model_validate(response.json())
 

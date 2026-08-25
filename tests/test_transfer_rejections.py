@@ -499,3 +499,63 @@ def test_transfer_exceeding_available_balance_is_rejected_without_financial_effe
     )
     assert sender_activity_after == sender_activity_before
     assert recipient_activity_after == recipient_activity_before
+
+
+@pytest.mark.contract
+@pytest.mark.negative
+def test_transfer_missing_destination_is_rejected_without_financial_effect(
+    banking_api_client: BankingApiClient,
+    registered_user,
+) -> None:
+    sender_token = banking_api_client.login(
+        email=registered_user.email,
+        password=registered_user.password,
+    )
+    source_account = banking_api_client.list_accounts(
+        access_token=sender_token.access_token,
+    )[0]
+    _fund_account_and_wait_for_settlement(
+        banking_api_client,
+        account_id=source_account.id,
+        access_token=sender_token.access_token,
+    )
+
+    source_before = banking_api_client.get_account(
+        account_id=source_account.id,
+        access_token=sender_token.access_token,
+    )
+    activity_before = banking_api_client.list_activity(
+        access_token=sender_token.access_token,
+    ).items
+
+    with pytest.raises(UnexpectedStatusError) as exc_info:
+        banking_api_client.create_transfer_from_payload(
+            payload={
+                "source_account_id": str(source_account.id),
+                "amount": "25.00",
+            },
+            access_token=sender_token.access_token,
+            idempotency_key=f"transfer-{uuid4()}",
+        )
+
+    error = exc_info.value
+    assert error.status_code == 422
+    assert error.error is not None
+    assert error.error.error.code == "VALIDATION_ERROR"
+
+    source_after = banking_api_client.get_account(
+        account_id=source_account.id,
+        access_token=sender_token.access_token,
+    )
+    activity_after = banking_api_client.list_activity(
+        access_token=sender_token.access_token,
+    ).items
+
+    assert (
+        source_after.settled_balance,
+        source_after.available_balance,
+    ) == (
+        source_before.settled_balance,
+        source_before.available_balance,
+    )
+    assert activity_after == activity_before

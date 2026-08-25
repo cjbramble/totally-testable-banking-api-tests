@@ -344,3 +344,60 @@ def test_unknown_destination_account_is_rejected_without_financial_effect(
         source_before.available_balance,
     )
     assert activity_after == activity_before
+
+
+@pytest.mark.contract
+@pytest.mark.negative
+def test_self_transfer_is_rejected_without_financial_effect(
+    banking_api_client: BankingApiClient,
+    registered_user,
+) -> None:
+    token = banking_api_client.login(
+        email=registered_user.email,
+        password=registered_user.password,
+    )
+    account = banking_api_client.list_accounts(access_token=token.access_token)[0]
+    _fund_account_and_wait_for_settlement(
+        banking_api_client,
+        account_id=account.id,
+        access_token=token.access_token,
+    )
+
+    account_before = banking_api_client.get_account(
+        account_id=account.id,
+        access_token=token.access_token,
+    )
+    activity_before = banking_api_client.list_activity(
+        access_token=token.access_token,
+    ).items
+
+    with pytest.raises(UnexpectedStatusError) as exc_info:
+        banking_api_client.create_transfer(
+            source_account_id=account.id,
+            destination_account_id=account.id,
+            amount="25.00",
+            access_token=token.access_token,
+            idempotency_key=f"transfer-{uuid4()}",
+        )
+
+    error = exc_info.value
+    assert error.status_code == 422
+    assert error.error is not None
+    assert error.error.error.code == "P2P_REQUIRES_DIFFERENT_USERS"
+
+    account_after = banking_api_client.get_account(
+        account_id=account.id,
+        access_token=token.access_token,
+    )
+    activity_after = banking_api_client.list_activity(
+        access_token=token.access_token,
+    ).items
+
+    assert (
+        account_after.settled_balance,
+        account_after.available_balance,
+    ) == (
+        account_before.settled_balance,
+        account_before.available_balance,
+    )
+    assert activity_after == activity_before

@@ -1,3 +1,5 @@
+"""Live contract evidence for unauthenticated public API failures."""
+
 import pytest
 
 from totally_testable_banking_api_tests.http_client import (

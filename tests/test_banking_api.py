@@ -1,3 +1,5 @@
+"""MockTransport tests for endpoint request construction and response parsing."""
+
 import json
 import uuid
 

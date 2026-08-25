@@ -1,3 +1,5 @@
+"""Strict consumer-model tests derived from the published API contract."""
+
 import uuid
 
 import pytest

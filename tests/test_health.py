@@ -1,3 +1,5 @@
+"""Live smoke evidence that the local API reports readiness."""
+
 import pytest
 
 from totally_testable_banking_api_tests.http_client import ApiClient

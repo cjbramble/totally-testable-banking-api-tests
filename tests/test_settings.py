@@ -1,3 +1,5 @@
+"""Configuration tests enforcing safe local targets and valid timeouts."""
+
 import pytest
 from pydantic import ValidationError
 

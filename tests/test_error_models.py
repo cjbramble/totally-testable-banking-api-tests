@@ -1,3 +1,5 @@
+"""Strict tests for the public machine-readable error envelope."""
+
 import pytest
 from pydantic import ValidationError
 

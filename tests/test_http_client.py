@@ -1,3 +1,5 @@
+"""Transport-unit tests for request forwarding and actionable HTTP failures."""
+
 import json
 
 import httpx

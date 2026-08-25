@@ -151,3 +151,109 @@ def test_changed_deposit_payload_with_reused_key_is_rejected_without_additional_
     )
     assert activity_after_rejection == activity_after_first
     assert sum(item.operation_id == first.id for item in activity_after_rejection) == 1
+
+
+@pytest.mark.contract
+@pytest.mark.invariant
+def test_two_users_can_use_the_same_deposit_key_independently(
+    banking_api_client: BankingApiClient,
+    registered_user,
+) -> None:
+    first_token = banking_api_client.login(
+        email=registered_user.email,
+        password=registered_user.password,
+    )
+    first_account = banking_api_client.list_accounts(
+        access_token=first_token.access_token,
+    )[0]
+
+    second_id = uuid4().hex
+    second_email = f"api-test-user-{second_id}@example.com"
+    second_password = f"Test-user-{second_id}"
+    banking_api_client.register_user(
+        email=second_email,
+        display_name="Second Test User",
+        password=second_password,
+    )
+    second_token = banking_api_client.login(
+        email=second_email,
+        password=second_password,
+    )
+    second_account = banking_api_client.list_accounts(
+        access_token=second_token.access_token,
+    )[0]
+
+    first_before = banking_api_client.get_account(
+        account_id=first_account.id,
+        access_token=first_token.access_token,
+    )
+    second_before = banking_api_client.get_account(
+        account_id=second_account.id,
+        access_token=second_token.access_token,
+    )
+    first_activity_before = banking_api_client.list_activity(
+        access_token=first_token.access_token,
+    ).items
+    second_activity_before = banking_api_client.list_activity(
+        access_token=second_token.access_token,
+    ).items
+
+    shared_key = f"shared-deposit-{uuid4()}"
+    first_deposit = banking_api_client.create_deposit(
+        destination_account_id=first_account.id,
+        amount="100.00",
+        access_token=first_token.access_token,
+        idempotency_key=shared_key,
+    )
+    second_deposit = banking_api_client.create_deposit(
+        destination_account_id=second_account.id,
+        amount="125.00",
+        access_token=second_token.access_token,
+        idempotency_key=shared_key,
+    )
+
+    _wait_for_deposit_settlement(
+        banking_api_client,
+        instruction_id=first_deposit.id,
+        access_token=first_token.access_token,
+    )
+    _wait_for_deposit_settlement(
+        banking_api_client,
+        instruction_id=second_deposit.id,
+        access_token=second_token.access_token,
+    )
+
+    first_after = banking_api_client.get_account(
+        account_id=first_account.id,
+        access_token=first_token.access_token,
+    )
+    second_after = banking_api_client.get_account(
+        account_id=second_account.id,
+        access_token=second_token.access_token,
+    )
+    first_activity_after = banking_api_client.list_activity(
+        access_token=first_token.access_token,
+    ).items
+    second_activity_after = banking_api_client.list_activity(
+        access_token=second_token.access_token,
+    ).items
+
+    assert first_deposit.id != second_deposit.id
+    assert Decimal(first_after.settled_balance) == (
+        Decimal(first_before.settled_balance) + Decimal("100.00")
+    )
+    assert Decimal(first_after.available_balance) == (
+        Decimal(first_before.available_balance) + Decimal("100.00")
+    )
+    assert Decimal(second_after.settled_balance) == (
+        Decimal(second_before.settled_balance) + Decimal("125.00")
+    )
+    assert Decimal(second_after.available_balance) == (
+        Decimal(second_before.available_balance) + Decimal("125.00")
+    )
+    assert len(first_activity_after) == len(first_activity_before) + 1
+    assert len(second_activity_after) == len(second_activity_before) + 1
+    assert sum(item.operation_id == first_deposit.id for item in first_activity_after) == 1
+    assert sum(item.operation_id == second_deposit.id for item in second_activity_after) == 1
+    assert all(item.operation_id != second_deposit.id for item in first_activity_after)
+    assert all(item.operation_id != first_deposit.id for item in second_activity_after)

@@ -235,3 +235,64 @@ def test_list_activity_sends_pagination_and_parses_page() -> None:
     assert page.items[0].direction.value == "SENT"
     assert page.items[0].amount == "25.00"
     assert page.next_cursor == "next-opaque-cursor"
+
+
+@pytest.mark.contract
+def test_withdrawal_methods_send_published_requests_and_parse_responses() -> None:
+    instruction_id = uuid.UUID("00000000-0000-4000-8000-000000000010")
+    source_account_id = uuid.UUID("00000000-0000-4000-8000-000000000011")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["Authorization"] == "Bearer access-token"
+        if request.method == "POST":
+            assert request.url.path == "/api/v1/withdrawals"
+            assert request.headers["Idempotency-Key"] == "withdrawal-key"
+            assert json.loads(request.content) == {
+                "source_account_id": str(source_account_id),
+                "amount": "25.00",
+            }
+            status_code = 202
+        else:
+            assert request.method == "GET"
+            assert request.url.path == f"/api/v1/withdrawals/{instruction_id}"
+            status_code = 200
+
+        return httpx.Response(
+            status_code,
+            json={
+                "id": str(instruction_id),
+                "source_account_id": str(source_account_id),
+                "amount": "25.00",
+                "currency": "USD",
+                "status": "CREATED",
+                "failure_code": None,
+                "created_at": "2026-08-25T12:00:00Z",
+                "completed_at": None,
+            },
+            request=request,
+        )
+
+    transport = ApiClient(
+        base_url="http://127.0.0.1:8009",
+        timeout=5.0,
+        transport=httpx.MockTransport(handler),
+    )
+    client = BankingApiClient(transport)
+
+    try:
+        created = client.create_withdrawal(
+            source_account_id=source_account_id,
+            amount="25.00",
+            access_token="access-token",
+            idempotency_key="withdrawal-key",
+        )
+        retrieved = client.get_withdrawal(
+            instruction_id=created.id,
+            access_token="access-token",
+        )
+    finally:
+        transport.close()
+
+    assert created.id == instruction_id
+    assert retrieved.id == created.id
+    assert retrieved.source_account_id == source_account_id

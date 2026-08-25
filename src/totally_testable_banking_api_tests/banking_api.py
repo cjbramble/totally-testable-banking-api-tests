@@ -9,6 +9,7 @@ from totally_testable_banking_api_tests.api_models import (
     TokenResponse,
     TransferResponse,
     UserResponse,
+    WithdrawalResponse,
 )
 from totally_testable_banking_api_tests.http_client import ApiClient
 
@@ -158,6 +159,43 @@ class BankingApiClient:
             headers={"Authorization": f"Bearer {access_token}"},
         )
         return DepositResponse.model_validate(response.json())
+
+    def create_withdrawal(
+        self,
+        *,
+        source_account_id: uuid.UUID,
+        amount: str,
+        access_token: str,
+        idempotency_key: str,
+    ) -> WithdrawalResponse:
+        response = self._transport.request(
+            "POST",
+            "/api/v1/withdrawals",
+            expected_status=202,
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Idempotency-Key": idempotency_key,
+            },
+            json_body={
+                "source_account_id": str(source_account_id),
+                "amount": amount,
+            },
+        )
+        return WithdrawalResponse.model_validate(response.json())
+
+    def get_withdrawal(
+        self,
+        *,
+        instruction_id: uuid.UUID,
+        access_token: str,
+    ) -> WithdrawalResponse:
+        response = self._transport.request(
+            "GET",
+            f"/api/v1/withdrawals/{instruction_id}",
+            expected_status=200,
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        return WithdrawalResponse.model_validate(response.json())
 
     def create_transfer(
         self,

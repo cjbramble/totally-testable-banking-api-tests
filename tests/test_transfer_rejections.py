@@ -10,8 +10,8 @@ from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 @pytest.mark.negative
 @pytest.mark.parametrize(
     "amount",
-    ["0.00", "-1.00"],
-    ids=["zero", "negative"],
+    ["0.00", "-1.00", "1.001"],
+    ids=["zero", "negative", "over-precision"],
 )
 def test_invalid_amount_transfer_is_rejected_without_balance_effect(
     banking_api_client: BankingApiClient,

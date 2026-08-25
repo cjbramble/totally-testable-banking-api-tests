@@ -1,3 +1,5 @@
+"""Transfer idempotency tests with durable balance and activity oracles."""
+
 import time
 from dataclasses import dataclass
 from decimal import Decimal
@@ -35,6 +37,8 @@ class LostSuccessfulResponseTransport(httpx.BaseTransport):
 
 @dataclass(frozen=True)
 class FundedTransferContext:
+    """Immutable participants and credentials for one isolated transfer test."""
+
     sender_access_token: str
     recipient_access_token: str
     source_account: AccountResponse
@@ -49,6 +53,8 @@ def _fund_account_and_wait_for_settlement(
     amount: str = "100.00",
     idempotency_key: str | None = None,
 ) -> DepositResponse:
+    """Fund one account through the API and return its settled instruction."""
+
     funding = banking_api_client.create_deposit(
         destination_account_id=account_id,
         amount=amount,
@@ -77,6 +83,8 @@ def funded_transfer_context(
     banking_api_client: BankingApiClient,
     registered_user,
 ) -> FundedTransferContext:
+    """Create fresh participants with a settled sender balance for each test."""
+
     sender_token = banking_api_client.login(
         email=registered_user.email,
         password=registered_user.password,

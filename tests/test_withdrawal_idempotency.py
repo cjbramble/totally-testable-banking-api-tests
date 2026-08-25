@@ -1,3 +1,5 @@
+"""Withdrawal idempotency tests proving one terminal debit and activity record."""
+
 import time
 from decimal import Decimal
 from uuid import UUID, uuid4
@@ -15,6 +17,8 @@ def _fund_account_and_wait_for_settlement(
     account_id: UUID,
     access_token: str,
 ) -> None:
+    """Create and settle the funding required by one withdrawal scenario."""
+
     funding = banking_api_client.create_deposit(
         destination_account_id=account_id,
         amount="100.00",
@@ -42,6 +46,8 @@ def _wait_for_withdrawal_settlement(
     instruction_id: UUID,
     access_token: str,
 ) -> WithdrawalResponse:
+    """Poll one owned withdrawal to settlement with a finite deadline."""
+
     deadline = time.monotonic() + 10.0
     while True:
         current = banking_api_client.get_withdrawal(

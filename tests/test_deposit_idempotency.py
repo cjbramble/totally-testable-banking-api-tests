@@ -1,3 +1,5 @@
+"""Deposit idempotency tests proving one terminal credit and activity record."""
+
 import time
 from decimal import Decimal
 from uuid import UUID, uuid4
@@ -15,6 +17,8 @@ def _wait_for_deposit_settlement(
     instruction_id: UUID,
     access_token: str,
 ) -> DepositResponse:
+    """Poll one owned deposit to settlement with a finite deadline."""
+
     deadline = time.monotonic() + 10.0
     while True:
         current = banking_api_client.get_deposit(

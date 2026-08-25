@@ -61,6 +61,19 @@ class DepositResponse(BaseModel):
     completed_at: datetime | None
 
 
+class WithdrawalResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: uuid.UUID
+    source_account_id: uuid.UUID
+    amount: str
+    currency: str
+    status: str
+    failure_code: str | None
+    created_at: datetime
+    completed_at: datetime | None
+
+
 class TransferResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

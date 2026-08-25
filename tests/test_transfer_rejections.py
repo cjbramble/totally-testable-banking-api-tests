@@ -1,10 +1,40 @@
 import time
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
+
+
+def _fund_account_and_wait_for_settlement(
+    banking_api_client: BankingApiClient,
+    *,
+    account_id: UUID,
+    access_token: str,
+    amount: str = "100.00",
+) -> None:
+    funding = banking_api_client.create_deposit(
+        destination_account_id=account_id,
+        amount=amount,
+        access_token=access_token,
+        idempotency_key=f"deposit-{uuid4()}",
+    )
+    deadline = time.monotonic() + 10.0
+    while True:
+        current_funding = banking_api_client.get_deposit(
+            instruction_id=funding.id,
+            access_token=access_token,
+        )
+        if current_funding.status == "SETTLED":
+            return
+        if current_funding.status == "FAILED":
+            pytest.fail(f"Funding deposit failed with {current_funding.failure_code!r}")
+        if time.monotonic() >= deadline:
+            pytest.fail(
+                f"Funding deposit did not settle; final status was {current_funding.status!r}"
+            )
+        time.sleep(0.1)
 
 
 @pytest.mark.contract
@@ -173,27 +203,11 @@ def test_foreign_source_account_is_rejected_without_financial_effect(
         access_token=owner_token.access_token,
     )[0]
 
-    funding = banking_api_client.create_deposit(
-        destination_account_id=source_account.id,
-        amount="100.00",
+    _fund_account_and_wait_for_settlement(
+        banking_api_client,
+        account_id=source_account.id,
         access_token=owner_token.access_token,
-        idempotency_key=f"deposit-{uuid4()}",
     )
-    deadline = time.monotonic() + 10.0
-    while True:
-        current_funding = banking_api_client.get_deposit(
-            instruction_id=funding.id,
-            access_token=owner_token.access_token,
-        )
-        if current_funding.status == "SETTLED":
-            break
-        if current_funding.status == "FAILED":
-            pytest.fail(f"Funding deposit failed with {current_funding.failure_code!r}")
-        if time.monotonic() >= deadline:
-            pytest.fail(
-                f"Funding deposit did not settle; final status was {current_funding.status!r}"
-            )
-        time.sleep(0.1)
 
     actor_id = uuid4().hex
     actor_email = f"api-test-user-{actor_id}@example.com"
@@ -271,3 +285,62 @@ def test_foreign_source_account_is_rejected_without_financial_effect(
     )
     assert owner_activity_after == owner_activity_before
     assert actor_activity_after == actor_activity_before
+
+
+@pytest.mark.contract
+@pytest.mark.negative
+def test_unknown_destination_account_is_rejected_without_financial_effect(
+    banking_api_client: BankingApiClient,
+    registered_user,
+) -> None:
+    sender_token = banking_api_client.login(
+        email=registered_user.email,
+        password=registered_user.password,
+    )
+    source_account = banking_api_client.list_accounts(
+        access_token=sender_token.access_token,
+    )[0]
+    _fund_account_and_wait_for_settlement(
+        banking_api_client,
+        account_id=source_account.id,
+        access_token=sender_token.access_token,
+    )
+
+    source_before = banking_api_client.get_account(
+        account_id=source_account.id,
+        access_token=sender_token.access_token,
+    )
+    activity_before = banking_api_client.list_activity(
+        access_token=sender_token.access_token,
+    ).items
+
+    with pytest.raises(UnexpectedStatusError) as exc_info:
+        banking_api_client.create_transfer(
+            source_account_id=source_account.id,
+            destination_account_id=uuid4(),
+            amount="25.00",
+            access_token=sender_token.access_token,
+            idempotency_key=f"transfer-{uuid4()}",
+        )
+
+    error = exc_info.value
+    assert error.status_code == 404
+    assert error.error is not None
+    assert error.error.error.code == "RECIPIENT_ACCOUNT_NOT_FOUND"
+
+    source_after = banking_api_client.get_account(
+        account_id=source_account.id,
+        access_token=sender_token.access_token,
+    )
+    activity_after = banking_api_client.list_activity(
+        access_token=sender_token.access_token,
+    ).items
+
+    assert (
+        source_after.settled_balance,
+        source_after.available_balance,
+    ) == (
+        source_before.settled_balance,
+        source_before.available_balance,
+    )
+    assert activity_after == activity_before

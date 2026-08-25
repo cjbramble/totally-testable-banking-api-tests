@@ -1,18 +1,28 @@
 import time
+from dataclasses import dataclass
 from decimal import Decimal
 from uuid import uuid4
 
 import pytest
 
+from totally_testable_banking_api_tests.api_models import AccountResponse
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
+from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 
 
-@pytest.mark.contract
-@pytest.mark.invariant
-def test_replayed_transfer_has_one_identity_and_one_financial_effect(
+@dataclass(frozen=True)
+class FundedTransferContext:
+    sender_access_token: str
+    recipient_access_token: str
+    source_account: AccountResponse
+    destination_account: AccountResponse
+
+
+@pytest.fixture
+def funded_transfer_context(
     banking_api_client: BankingApiClient,
     registered_user,
-) -> None:
+) -> FundedTransferContext:
     sender_token = banking_api_client.login(
         email=registered_user.email,
         password=registered_user.password,
@@ -59,51 +69,66 @@ def test_replayed_transfer_has_one_identity_and_one_financial_effect(
         access_token=recipient_token.access_token,
     )[0]
 
+    return FundedTransferContext(
+        sender_access_token=sender_token.access_token,
+        recipient_access_token=recipient_token.access_token,
+        source_account=source_account,
+        destination_account=destination_account,
+    )
+
+
+@pytest.mark.contract
+@pytest.mark.invariant
+def test_replayed_transfer_has_one_identity_and_one_financial_effect(
+    banking_api_client: BankingApiClient,
+    funded_transfer_context: FundedTransferContext,
+) -> None:
+    context = funded_transfer_context
     source_before = banking_api_client.get_account(
-        account_id=source_account.id,
-        access_token=sender_token.access_token,
+        account_id=context.source_account.id,
+        access_token=context.sender_access_token,
     )
     destination_before = banking_api_client.get_account(
-        account_id=destination_account.id,
-        access_token=recipient_token.access_token,
+        account_id=context.destination_account.id,
+        access_token=context.recipient_access_token,
     )
     sender_activity_before = banking_api_client.list_activity(
-        access_token=sender_token.access_token,
+        access_token=context.sender_access_token,
     ).items
     recipient_activity_before = banking_api_client.list_activity(
-        access_token=recipient_token.access_token,
+        access_token=context.recipient_access_token,
     ).items
 
     transfer_amount = Decimal("25.00")
     idempotency_key = f"transfer-{uuid4()}"
     first = banking_api_client.create_transfer(
-        source_account_id=source_account.id,
-        destination_account_id=destination_account.id,
+        source_account_id=context.source_account.id,
+        destination_account_id=context.destination_account.id,
         amount=str(transfer_amount),
-        access_token=sender_token.access_token,
+        access_token=context.sender_access_token,
         idempotency_key=idempotency_key,
     )
     replay = banking_api_client.create_transfer(
-        source_account_id=source_account.id,
-        destination_account_id=destination_account.id,
+        source_account_id=context.source_account.id,
+        destination_account_id=context.destination_account.id,
         amount=str(transfer_amount),
-        access_token=sender_token.access_token,
+        access_token=context.sender_access_token,
         idempotency_key=idempotency_key,
     )
 
     source_after = banking_api_client.get_account(
-        account_id=source_account.id,
-        access_token=sender_token.access_token,
+        account_id=context.source_account.id,
+        access_token=context.sender_access_token,
     )
     destination_after = banking_api_client.get_account(
-        account_id=destination_account.id,
-        access_token=recipient_token.access_token,
+        account_id=context.destination_account.id,
+        access_token=context.recipient_access_token,
     )
     sender_activity_after = banking_api_client.list_activity(
-        access_token=sender_token.access_token,
+        access_token=context.sender_access_token,
     ).items
     recipient_activity_after = banking_api_client.list_activity(
-        access_token=recipient_token.access_token,
+        access_token=context.recipient_access_token,
     ).items
 
     assert replay.id == first.id
@@ -123,3 +148,83 @@ def test_replayed_transfer_has_one_identity_and_one_financial_effect(
     assert len(recipient_activity_after) == len(recipient_activity_before) + 1
     assert sum(item.operation_id == first.id for item in sender_activity_after) == 1
     assert sum(item.operation_id == first.id for item in recipient_activity_after) == 1
+
+
+@pytest.mark.contract
+@pytest.mark.negative
+def test_changed_payload_with_reused_key_is_rejected_without_additional_effect(
+    banking_api_client: BankingApiClient,
+    funded_transfer_context: FundedTransferContext,
+) -> None:
+    context = funded_transfer_context
+    idempotency_key = f"transfer-{uuid4()}"
+    first = banking_api_client.create_transfer(
+        source_account_id=context.source_account.id,
+        destination_account_id=context.destination_account.id,
+        amount="25.00",
+        access_token=context.sender_access_token,
+        idempotency_key=idempotency_key,
+    )
+
+    source_after_first = banking_api_client.get_account(
+        account_id=context.source_account.id,
+        access_token=context.sender_access_token,
+    )
+    destination_after_first = banking_api_client.get_account(
+        account_id=context.destination_account.id,
+        access_token=context.recipient_access_token,
+    )
+    sender_activity_after_first = banking_api_client.list_activity(
+        access_token=context.sender_access_token,
+    ).items
+    recipient_activity_after_first = banking_api_client.list_activity(
+        access_token=context.recipient_access_token,
+    ).items
+
+    with pytest.raises(UnexpectedStatusError) as exc_info:
+        banking_api_client.create_transfer(
+            source_account_id=context.source_account.id,
+            destination_account_id=context.destination_account.id,
+            amount="30.00",
+            access_token=context.sender_access_token,
+            idempotency_key=idempotency_key,
+        )
+
+    error = exc_info.value
+    assert error.status_code == 409
+    assert error.error is not None
+    assert error.error.error.code == "IDEMPOTENCY_PAYLOAD_MISMATCH"
+
+    source_after_rejection = banking_api_client.get_account(
+        account_id=context.source_account.id,
+        access_token=context.sender_access_token,
+    )
+    destination_after_rejection = banking_api_client.get_account(
+        account_id=context.destination_account.id,
+        access_token=context.recipient_access_token,
+    )
+    sender_activity_after_rejection = banking_api_client.list_activity(
+        access_token=context.sender_access_token,
+    ).items
+    recipient_activity_after_rejection = banking_api_client.list_activity(
+        access_token=context.recipient_access_token,
+    ).items
+
+    assert (
+        source_after_rejection.settled_balance,
+        source_after_rejection.available_balance,
+    ) == (
+        source_after_first.settled_balance,
+        source_after_first.available_balance,
+    )
+    assert (
+        destination_after_rejection.settled_balance,
+        destination_after_rejection.available_balance,
+    ) == (
+        destination_after_first.settled_balance,
+        destination_after_first.available_balance,
+    )
+    assert sender_activity_after_rejection == sender_activity_after_first
+    assert recipient_activity_after_rejection == recipient_activity_after_first
+    assert sum(item.operation_id == first.id for item in sender_activity_after_rejection) == 1
+    assert sum(item.operation_id == first.id for item in recipient_activity_after_rejection) == 1

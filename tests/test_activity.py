@@ -1,3 +1,5 @@
+"""Two-party activity projection tests for completed financial operations."""
+
 import time
 from uuid import uuid4
 

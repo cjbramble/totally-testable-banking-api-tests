@@ -1,3 +1,5 @@
+"""Transfer rejection tests proving stable errors and no financial side effects."""
+
 import time
 from uuid import UUID, uuid4
 
@@ -14,6 +16,8 @@ def _fund_account_and_wait_for_settlement(
     access_token: str,
     amount: str = "100.00",
 ) -> None:
+    """Create the viable settled balance required by rejection scenarios."""
+
     funding = banking_api_client.create_deposit(
         destination_account_id=account_id,
         amount=amount,
@@ -52,7 +56,7 @@ def _fund_account_and_wait_for_settlement(
         ),
     ],
 )
-def test_invalid_amount_transfer_is_rejected_without_balance_effect(
+def test_invalid_amount_transfer_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
     registered_user,
     amount: str,
@@ -140,7 +144,7 @@ def test_invalid_amount_transfer_is_rejected_without_balance_effect(
         pytest.param("k" * 129, "IDEMPOTENCY_KEY_INVALID", id="oversized"),
     ],
 )
-def test_invalid_idempotency_key_is_rejected_without_balance_effect(
+def test_invalid_idempotency_key_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
     registered_user,
     idempotency_key: str | None,

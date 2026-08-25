@@ -1,3 +1,5 @@
+"""Live P2P atomic-balance and transfer-ownership tests."""
+
 import time
 from decimal import Decimal
 from uuid import uuid4

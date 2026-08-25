@@ -1,3 +1,5 @@
+"""Account ownership tests covering valid access and outsider concealment."""
+
 from uuid import uuid4
 
 import pytest

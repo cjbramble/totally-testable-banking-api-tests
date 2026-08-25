@@ -1,3 +1,5 @@
+"""Function-scoped fixtures for isolated users and API client lifecycle."""
+
 from collections.abc import Iterator
 from dataclasses import dataclass
 from uuid import uuid4
@@ -12,6 +14,8 @@ from totally_testable_banking_api_tests.settings import load_settings
 
 @dataclass(frozen=True)
 class RegisteredUser:
+    """Immutable registration result plus credentials needed by later actions."""
+
     user: UserResponse
     email: str
     password: str
@@ -19,6 +23,8 @@ class RegisteredUser:
 
 @pytest.fixture
 def banking_api_client() -> Iterator[BankingApiClient]:
+    """Provide one cookie-preserving API client and close it after each test."""
+
     settings = load_settings()
     transport = ApiClient(
         base_url=settings.sut_base_url,
@@ -33,6 +39,8 @@ def banking_api_client() -> Iterator[BankingApiClient]:
 
 @pytest.fixture
 def registered_user(banking_api_client: BankingApiClient) -> RegisteredUser:
+    """Register a uniquely named user through the normal product API."""
+
     unique_id = uuid4().hex
     email = f"api-test-user-{unique_id}@example.com"
     password = f"Test-user-{unique_id}"

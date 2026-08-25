@@ -1,3 +1,5 @@
+"""Cookie-session and CSRF security tests at the HTTP API boundary."""
+
 import pytest
 
 from totally_testable_banking_api_tests.banking_api import BankingApiClient

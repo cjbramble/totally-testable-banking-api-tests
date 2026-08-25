@@ -1,3 +1,5 @@
+"""Registration rejection tests for identity normalization and input validation."""
+
 from uuid import uuid4
 
 import pytest

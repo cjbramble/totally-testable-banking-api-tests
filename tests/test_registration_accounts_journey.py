@@ -1,3 +1,5 @@
+"""Smoke journey from unique registration through empty account retrieval."""
+
 import pytest
 
 from totally_testable_banking_api_tests.api_models import ProductAccountType

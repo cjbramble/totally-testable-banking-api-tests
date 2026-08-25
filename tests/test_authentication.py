@@ -1,3 +1,5 @@
+"""Bearer-authentication rejection tests using independently registered users."""
+
 import pytest
 
 from totally_testable_banking_api_tests.banking_api import BankingApiClient

@@ -86,9 +86,18 @@ def test_invalid_amount_transfer_is_rejected_without_balance_effect(
 
 @pytest.mark.contract
 @pytest.mark.negative
-def test_missing_idempotency_key_is_rejected_without_balance_effect(
+@pytest.mark.parametrize(
+    ("idempotency_key", "expected_error_code"),
+    [
+        pytest.param(None, "IDEMPOTENCY_KEY_REQUIRED", id="missing"),
+        pytest.param("", "IDEMPOTENCY_KEY_INVALID", id="empty"),
+    ],
+)
+def test_invalid_idempotency_key_is_rejected_without_balance_effect(
     banking_api_client: BankingApiClient,
     registered_user,
+    idempotency_key: str | None,
+    expected_error_code: str,
 ) -> None:
     sender_token = banking_api_client.login(
         email=registered_user.email,
@@ -126,13 +135,13 @@ def test_missing_idempotency_key_is_rejected_without_balance_effect(
             destination_account_id=recipient_account.id,
             amount="1.00",
             access_token=sender_token.access_token,
-            idempotency_key=None,
+            idempotency_key=idempotency_key,
         )
 
     error = exc_info.value
     assert error.status_code == 400
     assert error.error is not None
-    assert error.error.error.code == "IDEMPOTENCY_KEY_REQUIRED"
+    assert error.error.error.code == expected_error_code
 
     sender_after = banking_api_client.list_accounts(
         access_token=sender_token.access_token,

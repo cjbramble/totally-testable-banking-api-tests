@@ -401,3 +401,101 @@ def test_self_transfer_is_rejected_without_financial_effect(
         account_before.available_balance,
     )
     assert activity_after == activity_before
+
+
+@pytest.mark.contract
+@pytest.mark.negative
+def test_transfer_exceeding_available_balance_is_rejected_without_financial_effect(
+    banking_api_client: BankingApiClient,
+    registered_user,
+) -> None:
+    sender_token = banking_api_client.login(
+        email=registered_user.email,
+        password=registered_user.password,
+    )
+    source_account = banking_api_client.list_accounts(
+        access_token=sender_token.access_token,
+    )[0]
+    _fund_account_and_wait_for_settlement(
+        banking_api_client,
+        account_id=source_account.id,
+        access_token=sender_token.access_token,
+        amount="10.00",
+    )
+
+    recipient_id = uuid4().hex
+    recipient_email = f"api-test-user-{recipient_id}@example.com"
+    recipient_password = f"Test-user-{recipient_id}"
+    banking_api_client.register_user(
+        email=recipient_email,
+        display_name="Recipient Test User",
+        password=recipient_password,
+    )
+    recipient_token = banking_api_client.login(
+        email=recipient_email,
+        password=recipient_password,
+    )
+    destination_account = banking_api_client.list_accounts(
+        access_token=recipient_token.access_token,
+    )[0]
+
+    source_before = banking_api_client.get_account(
+        account_id=source_account.id,
+        access_token=sender_token.access_token,
+    )
+    destination_before = banking_api_client.get_account(
+        account_id=destination_account.id,
+        access_token=recipient_token.access_token,
+    )
+    sender_activity_before = banking_api_client.list_activity(
+        access_token=sender_token.access_token,
+    ).items
+    recipient_activity_before = banking_api_client.list_activity(
+        access_token=recipient_token.access_token,
+    ).items
+
+    with pytest.raises(UnexpectedStatusError) as exc_info:
+        banking_api_client.create_transfer(
+            source_account_id=source_account.id,
+            destination_account_id=destination_account.id,
+            amount="25.00",
+            access_token=sender_token.access_token,
+            idempotency_key=f"transfer-{uuid4()}",
+        )
+
+    error = exc_info.value
+    assert error.status_code == 409
+    assert error.error is not None
+    assert error.error.error.code == "INSUFFICIENT_FUNDS"
+
+    source_after = banking_api_client.get_account(
+        account_id=source_account.id,
+        access_token=sender_token.access_token,
+    )
+    destination_after = banking_api_client.get_account(
+        account_id=destination_account.id,
+        access_token=recipient_token.access_token,
+    )
+    sender_activity_after = banking_api_client.list_activity(
+        access_token=sender_token.access_token,
+    ).items
+    recipient_activity_after = banking_api_client.list_activity(
+        access_token=recipient_token.access_token,
+    ).items
+
+    assert (
+        source_after.settled_balance,
+        source_after.available_balance,
+    ) == (
+        source_before.settled_balance,
+        source_before.available_balance,
+    )
+    assert (
+        destination_after.settled_balance,
+        destination_after.available_balance,
+    ) == (
+        destination_before.settled_balance,
+        destination_before.available_balance,
+    )
+    assert sender_activity_after == sender_activity_before
+    assert recipient_activity_after == recipient_activity_before

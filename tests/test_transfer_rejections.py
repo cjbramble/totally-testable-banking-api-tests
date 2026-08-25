@@ -8,9 +8,15 @@ from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 
 @pytest.mark.contract
 @pytest.mark.negative
-def test_zero_amount_transfer_is_rejected_without_balance_effect(
+@pytest.mark.parametrize(
+    "amount",
+    ["0.00", "-1.00"],
+    ids=["zero", "negative"],
+)
+def test_invalid_amount_transfer_is_rejected_without_balance_effect(
     banking_api_client: BankingApiClient,
     registered_user,
+    amount: str,
 ) -> None:
     sender_token = banking_api_client.login(
         email=registered_user.email,
@@ -46,7 +52,7 @@ def test_zero_amount_transfer_is_rejected_without_balance_effect(
         banking_api_client.create_transfer(
             source_account_id=sender_account.id,
             destination_account_id=recipient_account.id,
-            amount="0.00",
+            amount=amount,
             access_token=sender_token.access_token,
             idempotency_key=f"transfer-{uuid4()}",
         )

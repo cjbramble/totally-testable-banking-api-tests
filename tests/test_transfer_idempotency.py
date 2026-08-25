@@ -1,7 +1,7 @@
 import time
 from dataclasses import dataclass
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -18,6 +18,36 @@ class FundedTransferContext:
     destination_account: AccountResponse
 
 
+def _fund_account_and_wait_for_settlement(
+    banking_api_client: BankingApiClient,
+    *,
+    account_id: UUID,
+    access_token: str,
+    amount: str = "100.00",
+) -> None:
+    funding = banking_api_client.create_deposit(
+        destination_account_id=account_id,
+        amount=amount,
+        access_token=access_token,
+        idempotency_key=f"deposit-{uuid4()}",
+    )
+    deadline = time.monotonic() + 10.0
+    while True:
+        current_funding = banking_api_client.get_deposit(
+            instruction_id=funding.id,
+            access_token=access_token,
+        )
+        if current_funding.status == "SETTLED":
+            return
+        if current_funding.status == "FAILED":
+            pytest.fail(f"Funding deposit failed with {current_funding.failure_code!r}")
+        if time.monotonic() >= deadline:
+            pytest.fail(
+                f"Funding deposit did not settle; final status was {current_funding.status!r}"
+            )
+        time.sleep(0.1)
+
+
 @pytest.fixture
 def funded_transfer_context(
     banking_api_client: BankingApiClient,
@@ -31,27 +61,11 @@ def funded_transfer_context(
         access_token=sender_token.access_token,
     )[0]
 
-    funding = banking_api_client.create_deposit(
-        destination_account_id=source_account.id,
-        amount="100.00",
+    _fund_account_and_wait_for_settlement(
+        banking_api_client,
+        account_id=source_account.id,
         access_token=sender_token.access_token,
-        idempotency_key=f"deposit-{uuid4()}",
     )
-    deadline = time.monotonic() + 10.0
-    while True:
-        current_funding = banking_api_client.get_deposit(
-            instruction_id=funding.id,
-            access_token=sender_token.access_token,
-        )
-        if current_funding.status == "SETTLED":
-            break
-        if current_funding.status == "FAILED":
-            pytest.fail(f"Funding deposit failed with {current_funding.failure_code!r}")
-        if time.monotonic() >= deadline:
-            pytest.fail(
-                f"Funding deposit did not settle; final status was {current_funding.status!r}"
-            )
-        time.sleep(0.1)
 
     recipient_id = uuid4().hex
     recipient_email = f"api-test-user-{recipient_id}@example.com"
@@ -228,3 +242,82 @@ def test_changed_payload_with_reused_key_is_rejected_without_additional_effect(
     assert recipient_activity_after_rejection == recipient_activity_after_first
     assert sum(item.operation_id == first.id for item in sender_activity_after_rejection) == 1
     assert sum(item.operation_id == first.id for item in recipient_activity_after_rejection) == 1
+
+
+@pytest.mark.contract
+@pytest.mark.invariant
+def test_two_users_can_use_the_same_idempotency_key_independently(
+    banking_api_client: BankingApiClient,
+    funded_transfer_context: FundedTransferContext,
+) -> None:
+    context = funded_transfer_context
+    _fund_account_and_wait_for_settlement(
+        banking_api_client,
+        account_id=context.destination_account.id,
+        access_token=context.recipient_access_token,
+    )
+
+    source_before = banking_api_client.get_account(
+        account_id=context.source_account.id,
+        access_token=context.sender_access_token,
+    )
+    destination_before = banking_api_client.get_account(
+        account_id=context.destination_account.id,
+        access_token=context.recipient_access_token,
+    )
+    sender_activity_before = banking_api_client.list_activity(
+        access_token=context.sender_access_token,
+    ).items
+    recipient_activity_before = banking_api_client.list_activity(
+        access_token=context.recipient_access_token,
+    ).items
+
+    shared_key = f"shared-transfer-{uuid4()}"
+    sender_transfer = banking_api_client.create_transfer(
+        source_account_id=context.source_account.id,
+        destination_account_id=context.destination_account.id,
+        amount="10.00",
+        access_token=context.sender_access_token,
+        idempotency_key=shared_key,
+    )
+    recipient_transfer = banking_api_client.create_transfer(
+        source_account_id=context.destination_account.id,
+        destination_account_id=context.source_account.id,
+        amount="15.00",
+        access_token=context.recipient_access_token,
+        idempotency_key=shared_key,
+    )
+
+    source_after = banking_api_client.get_account(
+        account_id=context.source_account.id,
+        access_token=context.sender_access_token,
+    )
+    destination_after = banking_api_client.get_account(
+        account_id=context.destination_account.id,
+        access_token=context.recipient_access_token,
+    )
+    sender_activity_after = banking_api_client.list_activity(
+        access_token=context.sender_access_token,
+    ).items
+    recipient_activity_after = banking_api_client.list_activity(
+        access_token=context.recipient_access_token,
+    ).items
+
+    assert sender_transfer.id != recipient_transfer.id
+    assert Decimal(source_after.settled_balance) == (
+        Decimal(source_before.settled_balance) - Decimal("10.00") + Decimal("15.00")
+    )
+    assert Decimal(source_after.available_balance) == (
+        Decimal(source_before.available_balance) - Decimal("10.00") + Decimal("15.00")
+    )
+    assert Decimal(destination_after.settled_balance) == (
+        Decimal(destination_before.settled_balance) + Decimal("10.00") - Decimal("15.00")
+    )
+    assert Decimal(destination_after.available_balance) == (
+        Decimal(destination_before.available_balance) + Decimal("10.00") - Decimal("15.00")
+    )
+    assert len(sender_activity_after) == len(sender_activity_before) + 2
+    assert len(recipient_activity_after) == len(recipient_activity_before) + 2
+    for operation_id in (sender_transfer.id, recipient_transfer.id):
+        assert sum(item.operation_id == operation_id for item in sender_activity_after) == 1
+        assert sum(item.operation_id == operation_id for item in recipient_activity_after) == 1

@@ -165,16 +165,17 @@ class BankingApiClient:
         destination_account_id: uuid.UUID,
         amount: str,
         access_token: str,
-        idempotency_key: str,
+        idempotency_key: str | None,
     ) -> TransferResponse:
+        headers = {"Authorization": f"Bearer {access_token}"}
+        if idempotency_key is not None:
+            headers["Idempotency-Key"] = idempotency_key
+
         response = self._transport.request(
             "POST",
             "/api/v1/transfers",
             expected_status=201,
-            headers={
-                "Authorization": f"Bearer {access_token}",
-                "Idempotency-Key": idempotency_key,
-            },
+            headers=headers,
             json_body={
                 "source_account_id": str(source_account_id),
                 "destination_account_id": str(destination_account_id),

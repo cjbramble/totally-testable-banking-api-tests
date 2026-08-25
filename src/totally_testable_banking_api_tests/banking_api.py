@@ -182,3 +182,17 @@ class BankingApiClient:
             },
         )
         return TransferResponse.model_validate(response.json())
+
+    def get_transfer(
+        self,
+        *,
+        transfer_id: uuid.UUID,
+        access_token: str,
+    ) -> TransferResponse:
+        response = self._transport.request(
+            "GET",
+            f"/api/v1/transfers/{transfer_id}",
+            expected_status=200,
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        return TransferResponse.model_validate(response.json())

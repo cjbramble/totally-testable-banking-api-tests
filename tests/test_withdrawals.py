@@ -6,6 +6,10 @@ from uuid import uuid4
 
 import pytest
 
+from totally_testable_banking_api_tests.api_models import (
+    ActivityDirection,
+    ActivityKind,
+)
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 
@@ -95,7 +99,7 @@ def test_outsider_cannot_retrieve_another_users_withdrawal(
 
 @pytest.mark.contract
 @pytest.mark.invariant
-def test_withdrawal_settlement_updates_account_balances(
+def test_withdrawal_settlement_updates_balances_and_activity(
     banking_api_client: BankingApiClient,
     funded_account,
 ) -> None:
@@ -126,6 +130,13 @@ def test_withdrawal_settlement_updates_account_balances(
         account_id=account_before.id,
         access_token=funded_account.access_token,
     )
+    matching_activity = [
+        item
+        for item in banking_api_client.list_activity(
+            access_token=funded_account.access_token,
+        ).items
+        if item.operation_id == withdrawal.id
+    ]
 
     assert current.completed_at is not None
     assert Decimal(account_after.settled_balance) == (
@@ -134,3 +145,12 @@ def test_withdrawal_settlement_updates_account_balances(
     assert Decimal(account_after.available_balance) == (
         Decimal(account_before.available_balance) - withdrawal_amount
     )
+    assert len(matching_activity) == 1
+    activity = matching_activity[0]
+    assert activity.kind is ActivityKind.WITHDRAWAL
+    assert activity.direction is ActivityDirection.DEBIT
+    assert activity.account_id == account_before.id
+    assert activity.amount == str(withdrawal_amount)
+    assert activity.currency == "USD"
+    assert activity.status == "SETTLED"
+    assert activity.completed_at is not None

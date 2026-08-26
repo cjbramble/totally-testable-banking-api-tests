@@ -14,8 +14,10 @@ from totally_testable_banking_api_tests.api_models import (
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 from totally_testable_banking_api_tests.processor_control import (
+    ProcessorCommandStatus,
     ProcessorControlClient,
     ProcessorOperation,
+    ProcessorOutcome,
     ProcessorScenario,
 )
 
@@ -249,3 +251,94 @@ def test_pending_withdrawal_reserves_available_balance_until_settlement(
     assert Decimal(account_after.available_balance) == (
         Decimal(account_before.available_balance) - withdrawal_amount
     )
+
+
+@pytest.mark.contract
+@pytest.mark.invariant
+def test_duplicate_processor_callback_has_one_withdrawal_effect(
+    banking_api_client: BankingApiClient,
+    processor_control_client: ProcessorControlClient,
+    funded_account,
+) -> None:
+    withdrawal_amount = Decimal("25.00")
+    account_before = banking_api_client.get_account(
+        account_id=funded_account.account.id,
+        access_token=funded_account.access_token,
+    )
+    activity_before = banking_api_client.list_activity(
+        access_token=funded_account.access_token,
+    ).items
+    operation_key = f"withdrawal-duplicate-{uuid4()}"
+    processor_control_client.configure_scenario(
+        operation=ProcessorOperation.WITHDRAWAL,
+        operation_key=operation_key,
+        scenario=ProcessorScenario.WITHDRAWAL_DUPLICATE_CALLBACK,
+    )
+
+    withdrawal = banking_api_client.create_withdrawal(
+        source_account_id=account_before.id,
+        amount=str(withdrawal_amount),
+        access_token=funded_account.access_token,
+        idempotency_key=operation_key,
+    )
+    delivery_deadline = time.monotonic() + 10.0
+
+    while True:
+        try:
+            observed = processor_control_client.observe_command(
+                bank_instruction_id=withdrawal.id,
+            )
+        except UnexpectedStatusError as error:
+            if error.status_code != 404:
+                raise
+        else:
+            if observed.callback_successful_delivery_count == 2:
+                break
+            if observed.callback_successful_delivery_count > 2:
+                pytest.fail(
+                    "Processor delivered more callbacks than the configured scenario required"
+                )
+        if time.monotonic() >= delivery_deadline:
+            pytest.fail("Processor did not complete two callback deliveries before the deadline")
+        time.sleep(0.1)
+
+    current = banking_api_client.get_withdrawal(
+        instruction_id=withdrawal.id,
+        access_token=funded_account.access_token,
+    )
+    account_after = banking_api_client.get_account(
+        account_id=account_before.id,
+        access_token=funded_account.access_token,
+    )
+    activity_after = banking_api_client.list_activity(
+        access_token=funded_account.access_token,
+    ).items
+    matching_activity = [item for item in activity_after if item.operation_id == withdrawal.id]
+
+    assert observed.operation is ProcessorOperation.WITHDRAWAL
+    assert observed.operation_key == operation_key
+    assert observed.bank_instruction_id == withdrawal.id
+    assert observed.status is ProcessorCommandStatus.TERMINAL
+    assert observed.outcome is ProcessorOutcome.SETTLED
+    assert observed.failure_code is None
+    assert observed.callback_required_delivery_count == 2
+    assert observed.callback_successful_delivery_count == 2
+    assert current.status == "SETTLED"
+    assert current.failure_code is None
+    assert current.completed_at is not None
+    assert Decimal(account_after.settled_balance) == (
+        Decimal(account_before.settled_balance) - withdrawal_amount
+    )
+    assert Decimal(account_after.available_balance) == (
+        Decimal(account_before.available_balance) - withdrawal_amount
+    )
+    assert len(activity_after) == len(activity_before) + 1
+    assert len(matching_activity) == 1
+    activity = matching_activity[0]
+    assert activity.kind is ActivityKind.WITHDRAWAL
+    assert activity.direction is ActivityDirection.DEBIT
+    assert activity.account_id == account_before.id
+    assert activity.amount == str(withdrawal_amount)
+    assert activity.currency == "USD"
+    assert activity.status == "SETTLED"
+    assert activity.failure_code is None

@@ -109,6 +109,7 @@ def test_outsider_cannot_retrieve_another_users_deposit(
     assert error.error.error.code == "DEPOSIT_NOT_FOUND"
 
 
+@pytest.mark.contract
 @pytest.mark.invariant
 def test_deposit_settlement_updates_balances_and_activity(
     banking_api_client: BankingApiClient,

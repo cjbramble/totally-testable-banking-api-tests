@@ -58,6 +58,7 @@ def _fund_account_and_wait_for_settlement(
 def test_invalid_amount_transfer_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
     registered_user,
+    registered_user_factory,
     amount: str,
     expected_error_code: str,
 ) -> None:
@@ -69,17 +70,10 @@ def test_invalid_amount_transfer_is_rejected_without_financial_effect(
         access_token=sender_token.access_token,
     )[0]
 
-    recipient_id = uuid4().hex
-    recipient_email = f"api-test-user-{recipient_id}@example.com"
-    recipient_password = f"Test-user-{recipient_id}"
-    banking_api_client.register_user(
-        email=recipient_email,
-        display_name="Recipient Test User",
-        password=recipient_password,
-    )
+    recipient = registered_user_factory(display_name="Recipient Test User")
     recipient_token = banking_api_client.login(
-        email=recipient_email,
-        password=recipient_password,
+        email=recipient.email,
+        password=recipient.password,
     )
     recipient_account = banking_api_client.list_accounts(
         access_token=recipient_token.access_token,
@@ -145,6 +139,7 @@ def test_invalid_amount_transfer_is_rejected_without_financial_effect(
 def test_invalid_idempotency_key_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
     registered_user,
+    registered_user_factory,
     idempotency_key: str | None,
     expected_error_code: str,
 ) -> None:
@@ -156,17 +151,10 @@ def test_invalid_idempotency_key_is_rejected_without_financial_effect(
         access_token=sender_token.access_token,
     )[0]
 
-    recipient_id = uuid4().hex
-    recipient_email = f"api-test-user-{recipient_id}@example.com"
-    recipient_password = f"Test-user-{recipient_id}"
-    banking_api_client.register_user(
-        email=recipient_email,
-        display_name="Recipient Test User",
-        password=recipient_password,
-    )
+    recipient = registered_user_factory(display_name="Recipient Test User")
     recipient_token = banking_api_client.login(
-        email=recipient_email,
-        password=recipient_password,
+        email=recipient.email,
+        password=recipient.password,
     )
     recipient_account = banking_api_client.list_accounts(
         access_token=recipient_token.access_token,
@@ -223,6 +211,7 @@ def test_invalid_idempotency_key_is_rejected_without_financial_effect(
 def test_foreign_source_account_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
     registered_user,
+    registered_user_factory,
 ) -> None:
     owner_token = banking_api_client.login(
         email=registered_user.email,
@@ -238,17 +227,10 @@ def test_foreign_source_account_is_rejected_without_financial_effect(
         access_token=owner_token.access_token,
     )
 
-    actor_id = uuid4().hex
-    actor_email = f"api-test-user-{actor_id}@example.com"
-    actor_password = f"Test-user-{actor_id}"
-    banking_api_client.register_user(
-        email=actor_email,
-        display_name="Actor Test User",
-        password=actor_password,
-    )
+    actor = registered_user_factory(display_name="Actor Test User")
     actor_token = banking_api_client.login(
-        email=actor_email,
-        password=actor_password,
+        email=actor.email,
+        password=actor.password,
     )
     destination_account = banking_api_client.list_accounts(
         access_token=actor_token.access_token,
@@ -434,6 +416,7 @@ def test_self_transfer_is_rejected_without_financial_effect(
 def test_transfer_exceeding_available_balance_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
     registered_user,
+    registered_user_factory,
 ) -> None:
     sender_token = banking_api_client.login(
         email=registered_user.email,
@@ -449,17 +432,10 @@ def test_transfer_exceeding_available_balance_is_rejected_without_financial_effe
         amount="10.00",
     )
 
-    recipient_id = uuid4().hex
-    recipient_email = f"api-test-user-{recipient_id}@example.com"
-    recipient_password = f"Test-user-{recipient_id}"
-    banking_api_client.register_user(
-        email=recipient_email,
-        display_name="Recipient Test User",
-        password=recipient_password,
-    )
+    recipient = registered_user_factory(display_name="Recipient Test User")
     recipient_token = banking_api_client.login(
-        email=recipient_email,
-        password=recipient_password,
+        email=recipient.email,
+        password=recipient.password,
     )
     destination_account = banking_api_client.list_accounts(
         access_token=recipient_token.access_token,

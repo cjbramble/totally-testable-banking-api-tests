@@ -27,16 +27,10 @@ class _AuthenticatedCheckingAccount:
 
 def _register_checking_account(
     banking_api_client: BankingApiClient,
+    registered_user_factory,
 ) -> _AuthenticatedCheckingAccount:
-    unique_id = uuid4().hex
-    email = f"api-test-user-{unique_id}@example.com"
-    password = f"Test-user-{unique_id}"
-    banking_api_client.register_user(
-        email=email,
-        display_name="Recipient Test User",
-        password=password,
-    )
-    token = banking_api_client.login(email=email, password=password)
+    user = registered_user_factory(display_name="Recipient Test User")
+    token = banking_api_client.login(email=user.email, password=user.password)
     account = next(
         account
         for account in banking_api_client.list_accounts(
@@ -160,10 +154,11 @@ def test_concurrent_same_key_account_transfers_have_one_financial_effect(
 def test_competing_transfers_cannot_overspend_one_account(
     banking_api_client: BankingApiClient,
     funded_account,
+    registered_user_factory,
 ) -> None:
     recipients = [
-        _register_checking_account(banking_api_client),
-        _register_checking_account(banking_api_client),
+        _register_checking_account(banking_api_client, registered_user_factory),
+        _register_checking_account(banking_api_client, registered_user_factory),
     ]
     sender_before = banking_api_client.get_account(
         account_id=funded_account.account.id,
@@ -266,6 +261,7 @@ def test_competing_transfers_cannot_overspend_one_account(
 def test_opposing_direction_transfers_both_post_with_coherent_balances(
     banking_api_client: BankingApiClient,
     funded_account,
+    registered_user_factory,
 ) -> None:
     account_a = _AuthenticatedCheckingAccount(
         access_token=funded_account.access_token,
@@ -273,7 +269,7 @@ def test_opposing_direction_transfers_both_post_with_coherent_balances(
     )
     account_b = _fund_checking_account(
         banking_api_client,
-        _register_checking_account(banking_api_client),
+        _register_checking_account(banking_api_client, registered_user_factory),
         amount="100.00",
     )
     activity_a_before = banking_api_client.list_activity(

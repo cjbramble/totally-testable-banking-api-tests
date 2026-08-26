@@ -113,7 +113,7 @@ def test_transfer_appears_as_sent_and_received_activity(
 
 
 @pytest.mark.invariant
-def test_activity_page_at_exact_limit_returns_expected_order_without_cursor(
+def test_activity_page_boundaries_return_expected_operations_without_cursor(
     banking_api_client: BankingApiClient,
     registered_user,
 ) -> None:
@@ -147,17 +147,24 @@ def test_activity_page_at_exact_limit_returns_expected_order_without_cursor(
         idempotency_key=f"account-transfer-{uuid4()}",
     )
 
-    page = banking_api_client.list_activity(
+    expected_operation_ids = [account_transfer.id, deposit.id]
+
+    exact_page = banking_api_client.list_activity(
         access_token=token.access_token,
         limit=2,
     )
 
-    assert [item.operation_id for item in page.items] == [
-        account_transfer.id,
-        deposit.id,
-    ]
-    assert [item.kind for item in page.items] == [
+    assert [item.operation_id for item in exact_page.items] == expected_operation_ids
+    assert [item.kind for item in exact_page.items] == [
         ActivityKind.ACCOUNT_TRANSFER,
         ActivityKind.DEPOSIT,
     ]
-    assert page.next_cursor is None
+    assert exact_page.next_cursor is None
+
+    partial_page = banking_api_client.list_activity(
+        access_token=token.access_token,
+        limit=3,
+    )
+
+    assert [item.operation_id for item in partial_page.items] == expected_operation_ids
+    assert partial_page.next_cursor is None

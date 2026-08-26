@@ -102,7 +102,7 @@ def test_declined_deposit_appears_as_failed_activity_without_balance_change(
 
 @pytest.mark.contract
 @pytest.mark.invariant
-def test_declined_withdrawal_fails_without_changing_account_balance(
+def test_declined_withdrawal_appears_as_failed_activity_without_balance_change(
     banking_api_client: BankingApiClient,
     processor_control_client: ProcessorControlClient,
     funded_account,
@@ -141,6 +141,13 @@ def test_declined_withdrawal_fails_without_changing_account_balance(
         account_id=account_before.id,
         access_token=funded_account.access_token,
     )
+    matching_activity = [
+        item
+        for item in banking_api_client.list_activity(
+            access_token=funded_account.access_token,
+        ).items
+        if item.operation_id == withdrawal.id
+    ]
 
     assert current.status == "FAILED"
     assert current.failure_code == "DECLINED"
@@ -152,3 +159,13 @@ def test_declined_withdrawal_fails_without_changing_account_balance(
         account_before.settled_balance,
         account_before.available_balance,
     )
+    assert len(matching_activity) == 1
+    activity = matching_activity[0]
+    assert activity.kind is ActivityKind.WITHDRAWAL
+    assert activity.direction is ActivityDirection.DEBIT
+    assert activity.account_id == account_before.id
+    assert activity.amount == "25.00"
+    assert activity.currency == "USD"
+    assert activity.status == "FAILED"
+    assert activity.failure_code == "DECLINED"
+    assert activity.completed_at is not None

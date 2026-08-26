@@ -15,6 +15,7 @@ from totally_testable_banking_api_tests.api_models import (
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import ApiClient
 from totally_testable_banking_api_tests.processor_control import ProcessorControlClient
+from totally_testable_banking_api_tests.scheduled_worker_control import ScheduledWorkerControl
 from totally_testable_banking_api_tests.settings import load_settings
 
 
@@ -68,6 +69,14 @@ def processor_control_client() -> Iterator[ProcessorControlClient]:
         )
     finally:
         transport.close()
+
+
+@pytest.fixture
+def scheduled_worker_control() -> ScheduledWorkerControl:
+    """Provide operation-scoped access to the local scheduled-transfer worker."""
+
+    settings = load_settings()
+    return ScheduledWorkerControl(settings.sut_compose_file)
 
 
 @pytest.fixture

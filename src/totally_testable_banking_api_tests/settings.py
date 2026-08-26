@@ -1,3 +1,4 @@
+from pathlib import Path
 from urllib.parse import urlparse
 
 from pydantic import SecretStr, ValidationInfo, field_validator
@@ -6,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     sut_base_url: str = "http://127.0.0.1:8009"
+    sut_compose_file: Path = Path("../totally-testable-banking/compose.yaml")
     processor_control_url: str = "http://127.0.0.1:8011"
     processor_control_secret: SecretStr
     request_timeout_seconds: float = 10.0
@@ -39,6 +41,14 @@ class Settings(BaseSettings):
             raise ValueError("PROCESSOR_CONTROL_SECRET must not be empty")
 
         return value
+
+    @field_validator("sut_compose_file")
+    @classmethod
+    def validate_sut_compose_file(cls, value: Path) -> Path:
+        resolved = value.expanduser().resolve()
+        if not resolved.is_file():
+            raise ValueError("SUT_COMPOSE_FILE must identify a local Compose file")
+        return resolved
 
     @field_validator("request_timeout_seconds")
     @classmethod

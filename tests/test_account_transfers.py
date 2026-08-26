@@ -1,16 +1,25 @@
 """Live own-account transfer lifecycle and financial-invariant tests."""
 
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 import pytest
 
-from totally_testable_banking_api_tests.api_models import AccountResponse, ProductAccountType
+from totally_testable_banking_api_tests.api_models import (
+    AccountResponse,
+    ProductAccountType,
+    TransferResponse,
+)
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
+from totally_testable_banking_api_tests.scheduled_worker_control import (
+    ScheduledWorkerCommandError,
+    ScheduledWorkerControl,
+)
 
 
 @dataclass(frozen=True)
@@ -42,6 +51,25 @@ def _register_authenticated_user(
             account for account in accounts if account.account_type is ProductAccountType.SAVINGS
         ),
     )
+
+
+def _wait_for_transfer_terminal(
+    banking_api_client: BankingApiClient,
+    *,
+    transfer_id: UUID,
+    access_token: str,
+) -> TransferResponse:
+    deadline = time.monotonic() + 10.0
+    while True:
+        current = banking_api_client.get_transfer(
+            transfer_id=transfer_id,
+            access_token=access_token,
+        )
+        if current.status in {"POSTED", "FAILED"}:
+            return current
+        if time.monotonic() >= deadline:
+            pytest.fail(f"Scheduled transfer did not finish; final status was {current.status!r}")
+        time.sleep(0.1)
 
 
 @pytest.mark.invariant
@@ -650,3 +678,104 @@ def test_scheduled_account_transfer_rejects_non_future_date(
     assert [item.operation_id for item in activity_after.items] == [
         item.operation_id for item in activity_before.items
     ]
+
+
+@pytest.mark.invariant
+def test_scheduled_account_transfer_posts_on_controlled_banking_date(
+    banking_api_client: BankingApiClient,
+    scheduled_worker_control: ScheduledWorkerControl,
+    funded_account,
+) -> None:
+    savings_before = next(
+        account
+        for account in banking_api_client.list_accounts(
+            access_token=funded_account.access_token,
+        )
+        if account.account_type is ProductAccountType.SAVINGS
+    )
+    checking_before = banking_api_client.get_account(
+        account_id=funded_account.account.id,
+        access_token=funded_account.access_token,
+    )
+    scheduled_for = datetime.now(ZoneInfo("America/New_York")).date() + timedelta(days=2)
+    transfer_amount = Decimal("25.00")
+    scheduled = banking_api_client.create_account_transfer(
+        source_account_id=checking_before.id,
+        destination_account_id=savings_before.id,
+        amount=str(transfer_amount),
+        access_token=funded_account.access_token,
+        idempotency_key=f"account-transfer-{uuid4()}",
+        scheduled_for=scheduled_for,
+    )
+
+    scheduled_worker_control.process_due_transfer(
+        transfer_id=scheduled.id,
+        banking_date=scheduled_for,
+    )
+    posted = _wait_for_transfer_terminal(
+        banking_api_client,
+        transfer_id=scheduled.id,
+        access_token=funded_account.access_token,
+    )
+    checking_after = banking_api_client.get_account(
+        account_id=checking_before.id,
+        access_token=funded_account.access_token,
+    )
+    savings_after = banking_api_client.get_account(
+        account_id=savings_before.id,
+        access_token=funded_account.access_token,
+    )
+
+    assert posted.status == "POSTED"
+    assert posted.scheduled_for == scheduled_for
+    assert posted.completed_at is not None
+    assert Decimal(checking_after.settled_balance) == (
+        Decimal(checking_before.settled_balance) - transfer_amount
+    )
+    assert Decimal(checking_after.available_balance) == (
+        Decimal(checking_before.available_balance) - transfer_amount
+    )
+    assert Decimal(savings_after.settled_balance) == (
+        Decimal(savings_before.settled_balance) + transfer_amount
+    )
+    assert Decimal(savings_after.available_balance) == (
+        Decimal(savings_before.available_balance) + transfer_amount
+    )
+
+    with pytest.raises(ScheduledWorkerCommandError) as exc_info:
+        scheduled_worker_control.process_due_transfer(
+            transfer_id=scheduled.id,
+            banking_date=scheduled_for,
+        )
+
+    checking_after_retry = banking_api_client.get_account(
+        account_id=checking_before.id,
+        access_token=funded_account.access_token,
+    )
+    savings_after_retry = banking_api_client.get_account(
+        account_id=savings_before.id,
+        access_token=funded_account.access_token,
+    )
+    activity = banking_api_client.list_activity(
+        access_token=funded_account.access_token,
+        limit=100,
+    )
+    matching_activity = [item for item in activity.items if item.operation_id == scheduled.id]
+
+    assert exc_info.value.returncode == 2
+    assert (
+        checking_after_retry.settled_balance,
+        checking_after_retry.available_balance,
+    ) == (
+        checking_after.settled_balance,
+        checking_after.available_balance,
+    )
+    assert (
+        savings_after_retry.settled_balance,
+        savings_after_retry.available_balance,
+    ) == (
+        savings_after.settled_balance,
+        savings_after.available_balance,
+    )
+    assert len(matching_activity) == 1
+    assert matching_activity[0].status == "POSTED"

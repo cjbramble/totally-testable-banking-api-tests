@@ -21,6 +21,8 @@ def test_default_local_settings_are_accepted(monkeypatch: pytest.MonkeyPatch) ->
     settings = load_settings(env_file=None)
 
     assert settings.sut_base_url == "http://127.0.0.1:8009"
+    assert settings.sut_compose_file.name == "compose.yaml"
+    assert settings.sut_compose_file.parent.name == "totally-testable-banking"
     assert settings.processor_control_url == "http://127.0.0.1:8011"
     assert settings.processor_control_secret.get_secret_value() == "test-processor-control-secret"
     assert settings.request_timeout_seconds == 10.0
@@ -74,4 +76,14 @@ def test_missing_processor_control_secret_is_rejected(
     monkeypatch.delenv("PROCESSOR_CONTROL_SECRET")
 
     with pytest.raises(ValidationError, match="processor_control_secret"):
+        load_settings(env_file=None)
+
+
+@pytest.mark.negative
+def test_missing_sut_compose_file_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SUT_COMPOSE_FILE", "/path/that/does/not/exist/compose.yaml")
+
+    with pytest.raises(ValidationError, match="local Compose file"):
         load_settings(env_file=None)

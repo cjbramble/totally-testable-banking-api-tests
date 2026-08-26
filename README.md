@@ -31,6 +31,8 @@ make up
 ```
 
 The default API address is `http://127.0.0.1:8009`.
+`SUT_COMPOSE_FILE` identifies the local SUT Compose file used for bounded worker actions and
+defaults to the sibling `totally-testable-banking/compose.yaml`.
 The processor-control address defaults to `http://127.0.0.1:8011`.
 `PROCESSOR_CONTROL_SECRET` must match the credential configured for the local
 simulated processor. It is required at runtime and must not contain a hosted

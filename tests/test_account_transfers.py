@@ -8,6 +8,7 @@ import pytest
 
 from totally_testable_banking_api_tests.api_models import ProductAccountType
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
+from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 
 
 @pytest.mark.invariant
@@ -270,4 +271,75 @@ def test_scheduled_account_transfer_can_be_canceled_before_execution(
     ) == (
         savings_before.settled_balance,
         savings_before.available_balance,
+    )
+
+
+@pytest.mark.negative
+@pytest.mark.invariant
+def test_completed_account_transfer_cannot_be_canceled(
+    banking_api_client: BankingApiClient,
+    funded_account,
+) -> None:
+    savings = next(
+        account
+        for account in banking_api_client.list_accounts(
+            access_token=funded_account.access_token,
+        )
+        if account.account_type is ProductAccountType.SAVINGS
+    )
+    posted = banking_api_client.create_account_transfer(
+        source_account_id=funded_account.account.id,
+        destination_account_id=savings.id,
+        amount="25.00",
+        access_token=funded_account.access_token,
+        idempotency_key=f"account-transfer-{uuid4()}",
+    )
+    checking_before_rejection = banking_api_client.get_account(
+        account_id=funded_account.account.id,
+        access_token=funded_account.access_token,
+    )
+    savings_before_rejection = banking_api_client.get_account(
+        account_id=savings.id,
+        access_token=funded_account.access_token,
+    )
+
+    with pytest.raises(UnexpectedStatusError) as exc_info:
+        banking_api_client.cancel_transfer(
+            transfer_id=posted.id,
+            access_token=funded_account.access_token,
+        )
+
+    retrieved = banking_api_client.get_transfer(
+        transfer_id=posted.id,
+        access_token=funded_account.access_token,
+    )
+    checking_after_rejection = banking_api_client.get_account(
+        account_id=funded_account.account.id,
+        access_token=funded_account.access_token,
+    )
+    savings_after_rejection = banking_api_client.get_account(
+        account_id=savings.id,
+        access_token=funded_account.access_token,
+    )
+    error = exc_info.value
+
+    assert error.status_code == 409
+    assert error.error is not None
+    assert error.error.error.code == "SCHEDULED_TRANSFER_NOT_CANCELABLE"
+    assert retrieved.id == posted.id
+    assert retrieved.status == "POSTED"
+    assert retrieved.completed_at == posted.completed_at
+    assert (
+        checking_after_rejection.settled_balance,
+        checking_after_rejection.available_balance,
+    ) == (
+        checking_before_rejection.settled_balance,
+        checking_before_rejection.available_balance,
+    )
+    assert (
+        savings_after_rejection.settled_balance,
+        savings_after_rejection.available_balance,
+    ) == (
+        savings_before_rejection.settled_balance,
+        savings_before_rejection.available_balance,
     )

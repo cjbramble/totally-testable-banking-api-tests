@@ -779,3 +779,92 @@ def test_scheduled_account_transfer_posts_on_controlled_banking_date(
     )
     assert len(matching_activity) == 1
     assert matching_activity[0].status == "POSTED"
+
+
+@pytest.mark.negative
+@pytest.mark.invariant
+def test_scheduled_account_transfer_fails_when_funds_are_spent_before_execution(
+    banking_api_client: BankingApiClient,
+    scheduled_worker_control: ScheduledWorkerControl,
+    funded_account,
+) -> None:
+    savings = next(
+        account
+        for account in banking_api_client.list_accounts(
+            access_token=funded_account.access_token,
+        )
+        if account.account_type is ProductAccountType.SAVINGS
+    )
+    checking = banking_api_client.get_account(
+        account_id=funded_account.account.id,
+        access_token=funded_account.access_token,
+    )
+    scheduled_for = datetime.now(ZoneInfo("America/New_York")).date() + timedelta(days=2)
+    scheduled = banking_api_client.create_account_transfer(
+        source_account_id=checking.id,
+        destination_account_id=savings.id,
+        amount="80.00",
+        access_token=funded_account.access_token,
+        idempotency_key=f"account-transfer-{uuid4()}",
+        scheduled_for=scheduled_for,
+    )
+    banking_api_client.create_account_transfer(
+        source_account_id=checking.id,
+        destination_account_id=savings.id,
+        amount="30.00",
+        access_token=funded_account.access_token,
+        idempotency_key=f"account-transfer-{uuid4()}",
+    )
+    checking_before_execution = banking_api_client.get_account(
+        account_id=checking.id,
+        access_token=funded_account.access_token,
+    )
+    savings_before_execution = banking_api_client.get_account(
+        account_id=savings.id,
+        access_token=funded_account.access_token,
+    )
+
+    scheduled_worker_control.process_due_transfer(
+        transfer_id=scheduled.id,
+        banking_date=scheduled_for,
+    )
+    failed = _wait_for_transfer_terminal(
+        banking_api_client,
+        transfer_id=scheduled.id,
+        access_token=funded_account.access_token,
+    )
+    checking_after_execution = banking_api_client.get_account(
+        account_id=checking.id,
+        access_token=funded_account.access_token,
+    )
+    savings_after_execution = banking_api_client.get_account(
+        account_id=savings.id,
+        access_token=funded_account.access_token,
+    )
+    activity = banking_api_client.list_activity(
+        access_token=funded_account.access_token,
+        limit=100,
+    )
+    matching_activity = [item for item in activity.items if item.operation_id == scheduled.id]
+
+    assert failed.status == "FAILED"
+    assert failed.failure_code == "INSUFFICIENT_FUNDS"
+    assert failed.scheduled_for == scheduled_for
+    assert failed.completed_at is not None
+    assert (
+        checking_after_execution.settled_balance,
+        checking_after_execution.available_balance,
+    ) == (
+        checking_before_execution.settled_balance,
+        checking_before_execution.available_balance,
+    )
+    assert (
+        savings_after_execution.settled_balance,
+        savings_after_execution.available_balance,
+    ) == (
+        savings_before_execution.settled_balance,
+        savings_before_execution.available_balance,
+    )
+    assert len(matching_activity) == 1
+    assert matching_activity[0].status == "FAILED"
+    assert matching_activity[0].failure_code == "INSUFFICIENT_FUNDS"

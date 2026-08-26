@@ -57,6 +57,12 @@ and checks that ordinary tests remain isolated when their execution order overla
 concurrency tests run separately because they already synchronize multiple requests within one
 test.
 
+Validate hermetic-runner prerequisites without changing Docker state:
+
+```bash
+./scripts/run-hermetic.sh --preflight
+```
+
 Directories group tests by owned behavior:
 
 - `activity/` — activity projections and keyset pagination;

@@ -4,7 +4,7 @@ import enum
 import uuid
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from totally_testable_banking_api_tests.http_client import ApiClient
 
@@ -22,6 +22,16 @@ class ProcessorScenario(enum.StrEnum):
     WITHDRAWAL_ACCEPT_THEN_TIMEOUT = "WITHDRAWAL_ACCEPT_THEN_TIMEOUT"
     WITHDRAWAL_DUPLICATE_CALLBACK = "WITHDRAWAL_DUPLICATE_CALLBACK"
     WITHDRAWAL_PENDING = "WITHDRAWAL_PENDING"
+
+
+class ProcessorCommandStatus(enum.StrEnum):
+    ACCEPTED = "ACCEPTED"
+    TERMINAL = "TERMINAL"
+
+
+class ProcessorOutcome(enum.StrEnum):
+    SETTLED = "SETTLED"
+    FAILED = "FAILED"
 
 
 class ConfiguredProcessorScenario(BaseModel):
@@ -44,6 +54,21 @@ class ControlledSettlement(BaseModel):
     bank_instruction_id: uuid.UUID
     status: Literal["TERMINAL"]
     outcome: Literal["SETTLED"]
+
+
+class ControlledCommandObservation(BaseModel):
+    """Published provider state and callback-delivery observations."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    operation: ProcessorOperation
+    operation_key: str | None
+    bank_instruction_id: uuid.UUID
+    status: ProcessorCommandStatus
+    outcome: ProcessorOutcome | None
+    failure_code: str | None
+    callback_required_delivery_count: int = Field(ge=0)
+    callback_successful_delivery_count: int = Field(ge=0)
 
 
 class ProcessorControlClient:
@@ -81,3 +106,16 @@ class ProcessorControlClient:
             headers={"Authorization": f"Bearer {self._token}"},
         )
         return ControlledSettlement.model_validate(response.json())
+
+    def observe_command(
+        self,
+        *,
+        bank_instruction_id: uuid.UUID,
+    ) -> ControlledCommandObservation:
+        response = self._transport.request(
+            "GET",
+            f"/internal/v1/commands/{bank_instruction_id}",
+            expected_status=200,
+            headers={"Authorization": f"Bearer {self._token}"},
+        )
+        return ControlledCommandObservation.model_validate(response.json())

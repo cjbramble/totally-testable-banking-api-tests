@@ -5,7 +5,11 @@ from uuid import uuid4
 
 import pytest
 
-from totally_testable_banking_api_tests.api_models import ProductAccountType
+from totally_testable_banking_api_tests.api_models import (
+    ActivityDirection,
+    ActivityKind,
+    ProductAccountType,
+)
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.processor_control import (
     ProcessorControlClient,
@@ -16,7 +20,7 @@ from totally_testable_banking_api_tests.processor_control import (
 
 @pytest.mark.contract
 @pytest.mark.invariant
-def test_declined_deposit_fails_without_changing_account_balance(
+def test_declined_deposit_appears_as_failed_activity_without_balance_change(
     banking_api_client: BankingApiClient,
     processor_control_client: ProcessorControlClient,
     registered_user,
@@ -66,6 +70,13 @@ def test_declined_deposit_fails_without_changing_account_balance(
         account_id=account.id,
         access_token=token.access_token,
     )
+    matching_activity = [
+        item
+        for item in banking_api_client.list_activity(
+            access_token=token.access_token,
+        ).items
+        if item.operation_id == deposit.id
+    ]
 
     assert current.status == "FAILED"
     assert current.failure_code == "DECLINED"
@@ -77,6 +88,16 @@ def test_declined_deposit_fails_without_changing_account_balance(
         account_before.settled_balance,
         account_before.available_balance,
     )
+    assert len(matching_activity) == 1
+    activity = matching_activity[0]
+    assert activity.kind is ActivityKind.DEPOSIT
+    assert activity.direction is ActivityDirection.CREDIT
+    assert activity.account_id == account.id
+    assert activity.amount == "25.00"
+    assert activity.currency == "USD"
+    assert activity.status == "FAILED"
+    assert activity.failure_code == "DECLINED"
+    assert activity.completed_at is not None
 
 
 @pytest.mark.contract

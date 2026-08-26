@@ -44,7 +44,28 @@ Run the focused or complete test suite:
 
 ```bash
 pytest -q
+pytest -q tests/auth
+pytest -q -m smoke
+pytest -q -m unit
+pytest -q -m contract
+pytest -q -m concurrency
 ```
+
+Directories group tests by owned behavior:
+
+- `activity/` — activity projections and keyset pagination;
+- `auth/` — registration, authentication, browser sessions, and authorization;
+- `concurrency/` — deliberately synchronized financial races;
+- `deposits/` and `withdrawals/` — asynchronous lifecycle and idempotency behavior;
+- `processor/` — the banking-service and simulated-processor boundary;
+- `smoke/` — essential live-service readiness;
+- `transfers/` — P2P and own-account transfer behavior;
+- `unit/` — isolated tests of this automation package.
+
+Directories answer where behavior is owned. Markers select cross-cutting purpose or risk.
+For example, `contract` is reserved for the bank–processor boundary, while `invariant` and
+`negative` span several product areas. Controlled races use `concurrency`; ordinary parallel
+suite execution is a separate isolation concern.
 
 Run the static quality checks:
 
@@ -57,7 +78,7 @@ pre-commit run --all-files
 
 ## Test boundary
 
-This repository tests the banking API through its published HTTP contracts.
+This repository tests the banking API through its published HTTP interfaces.
 It does not:
 
 - import SUT implementation code;

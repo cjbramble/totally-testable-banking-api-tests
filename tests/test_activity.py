@@ -1,12 +1,37 @@
 """Two-party activity projection tests for completed financial operations."""
 
 import time
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
-from totally_testable_banking_api_tests.api_models import ActivityDirection, ActivityKind
+from totally_testable_banking_api_tests.api_models import (
+    ActivityDirection,
+    ActivityKind,
+    ProductAccountType,
+)
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
+
+
+def _wait_for_deposit_settlement(
+    banking_api_client: BankingApiClient,
+    *,
+    instruction_id: UUID,
+    access_token: str,
+) -> None:
+    deadline = time.monotonic() + 10.0
+    while True:
+        current = banking_api_client.get_deposit(
+            instruction_id=instruction_id,
+            access_token=access_token,
+        )
+        if current.status == "SETTLED":
+            return
+        if current.status == "FAILED":
+            pytest.fail(f"Funding deposit failed with {current.failure_code!r}")
+        if time.monotonic() >= deadline:
+            pytest.fail(f"Funding deposit did not settle; final status was {current.status!r}")
+        time.sleep(0.1)
 
 
 @pytest.mark.invariant
@@ -44,21 +69,11 @@ def test_transfer_appears_as_sent_and_received_activity(
         access_token=sender_token.access_token,
         idempotency_key=f"deposit-{uuid4()}",
     )
-    deadline = time.monotonic() + 10.0
-    while True:
-        current_funding = banking_api_client.get_deposit(
-            instruction_id=funding.id,
-            access_token=sender_token.access_token,
-        )
-        if current_funding.status == "SETTLED":
-            break
-        if current_funding.status == "FAILED":
-            pytest.fail(f"Funding deposit failed with {current_funding.failure_code!r}")
-        if time.monotonic() >= deadline:
-            pytest.fail(
-                f"Funding deposit did not settle; final status was {current_funding.status!r}"
-            )
-        time.sleep(0.1)
+    _wait_for_deposit_settlement(
+        banking_api_client,
+        instruction_id=funding.id,
+        access_token=sender_token.access_token,
+    )
 
     transfer = banking_api_client.create_transfer(
         source_account_id=sender_account.id,
@@ -95,3 +110,54 @@ def test_transfer_appears_as_sent_and_received_activity(
     assert recipient_activity.amount == "25.00"
     assert recipient_activity.currency == "USD"
     assert recipient_activity.status == "POSTED"
+
+
+@pytest.mark.invariant
+def test_activity_page_at_exact_limit_returns_expected_order_without_cursor(
+    banking_api_client: BankingApiClient,
+    registered_user,
+) -> None:
+    token = banking_api_client.login(
+        email=registered_user.email,
+        password=registered_user.password,
+    )
+    accounts = banking_api_client.list_accounts(access_token=token.access_token)
+    checking = next(
+        account for account in accounts if account.account_type is ProductAccountType.CHECKING
+    )
+    savings = next(
+        account for account in accounts if account.account_type is ProductAccountType.SAVINGS
+    )
+    deposit = banking_api_client.create_deposit(
+        destination_account_id=checking.id,
+        amount="100.00",
+        access_token=token.access_token,
+        idempotency_key=f"deposit-{uuid4()}",
+    )
+    _wait_for_deposit_settlement(
+        banking_api_client,
+        instruction_id=deposit.id,
+        access_token=token.access_token,
+    )
+    account_transfer = banking_api_client.create_account_transfer(
+        source_account_id=checking.id,
+        destination_account_id=savings.id,
+        amount="25.00",
+        access_token=token.access_token,
+        idempotency_key=f"account-transfer-{uuid4()}",
+    )
+
+    page = banking_api_client.list_activity(
+        access_token=token.access_token,
+        limit=2,
+    )
+
+    assert [item.operation_id for item in page.items] == [
+        account_transfer.id,
+        deposit.id,
+    ]
+    assert [item.kind for item in page.items] == [
+        ActivityKind.ACCOUNT_TRANSFER,
+        ActivityKind.DEPOSIT,
+    ]
+    assert page.next_cursor is None

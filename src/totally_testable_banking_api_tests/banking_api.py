@@ -236,6 +236,31 @@ class BankingApiClient:
         )
         return TransferResponse.model_validate(response.json())
 
+    def create_account_transfer(
+        self,
+        *,
+        source_account_id: uuid.UUID,
+        destination_account_id: uuid.UUID,
+        amount: str,
+        access_token: str,
+        idempotency_key: str,
+    ) -> TransferResponse:
+        response = self._transport.request(
+            "POST",
+            "/api/v1/account-transfers",
+            expected_status=201,
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Idempotency-Key": idempotency_key,
+            },
+            json_body={
+                "source_account_id": str(source_account_id),
+                "destination_account_id": str(destination_account_id),
+                "amount": amount,
+            },
+        )
+        return TransferResponse.model_validate(response.json())
+
     def get_transfer(
         self,
         *,

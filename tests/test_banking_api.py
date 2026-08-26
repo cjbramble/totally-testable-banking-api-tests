@@ -184,6 +184,63 @@ def test_create_transfer_sends_request_and_parses_transfer_response() -> None:
     assert transfer.transfer_kind == "P2P"
 
 
+def test_create_account_transfer_sends_request_and_parses_response() -> None:
+    source_account_id = uuid.UUID("00000000-0000-0000-0000-000000000001")
+    destination_account_id = uuid.UUID("00000000-0000-0000-0000-000000000002")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/v1/account-transfers"
+        assert request.headers["Authorization"] == "Bearer access-token"
+        assert request.headers["Idempotency-Key"] == "account-transfer-key"
+        assert json.loads(request.content) == {
+            "source_account_id": str(source_account_id),
+            "destination_account_id": str(destination_account_id),
+            "amount": "25.00",
+        }
+        return httpx.Response(
+            201,
+            json={
+                "id": "00000000-0000-4000-8000-000000000003",
+                "sender_user_id": "00000000-0000-4000-8000-000000000004",
+                "recipient_user_id": "00000000-0000-4000-8000-000000000004",
+                "source_account_id": str(source_account_id),
+                "destination_account_id": str(destination_account_id),
+                "amount": "25.00",
+                "currency": "USD",
+                "status": "POSTED",
+                "transfer_kind": "OWN_ACCOUNT",
+                "created_at": "2026-08-23T12:00:00Z",
+                "scheduled_for": None,
+                "failure_code": None,
+                "completed_at": "2026-08-23T12:00:00Z",
+            },
+            request=request,
+        )
+
+    transport = ApiClient(
+        base_url="http://127.0.0.1:8009",
+        timeout=5.0,
+        transport=httpx.MockTransport(handler),
+    )
+    client = BankingApiClient(transport)
+
+    try:
+        transfer = client.create_account_transfer(
+            source_account_id=source_account_id,
+            destination_account_id=destination_account_id,
+            amount="25.00",
+            access_token="access-token",
+            idempotency_key="account-transfer-key",
+        )
+    finally:
+        transport.close()
+
+    assert str(transfer.id) == "00000000-0000-4000-8000-000000000003"
+    assert transfer.amount == "25.00"
+    assert transfer.transfer_kind == "OWN_ACCOUNT"
+
+
 def test_list_activity_sends_pagination_and_parses_page() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/activity"

@@ -1,11 +1,13 @@
 from urllib.parse import urlparse
 
-from pydantic import field_validator
+from pydantic import SecretStr, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     sut_base_url: str = "http://127.0.0.1:8009"
+    processor_control_url: str = "http://127.0.0.1:8011"
+    processor_control_secret: SecretStr
     request_timeout_seconds: float = 10.0
 
     model_config = SettingsConfigDict(
@@ -14,16 +16,27 @@ class Settings(BaseSettings):
         extra="forbid",
     )
 
-    @field_validator("sut_base_url")
+    @field_validator("sut_base_url", "processor_control_url")
     @classmethod
-    def validate_sut_base_url(cls, value: str) -> str:
+    def validate_local_url(cls, value: str, info: ValidationInfo) -> str:
         parsed = urlparse(value)
+        if info.field_name is None:
+            raise ValueError("Local URL setting name is unavailable")
+        setting_name = info.field_name.upper()
 
         if parsed.scheme != "http":
-            raise ValueError("SUT_BASE_URL must use plain HTTP")
+            raise ValueError(f"{setting_name} must use plain HTTP")
 
         if parsed.hostname not in {"localhost", "127.0.0.1"}:
-            raise ValueError("SUT_BASE_URL must target localhost or 127.0.0.1")
+            raise ValueError(f"{setting_name} must target localhost or 127.0.0.1")
+
+        return value
+
+    @field_validator("processor_control_secret")
+    @classmethod
+    def validate_processor_control_secret(cls, value: SecretStr) -> SecretStr:
+        if not value.get_secret_value().strip():
+            raise ValueError("PROCESSOR_CONTROL_SECRET must not be empty")
 
         return value
 

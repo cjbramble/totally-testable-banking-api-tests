@@ -31,6 +31,10 @@ make up
 ```
 
 The default API address is `http://127.0.0.1:8009`.
+The processor-control address defaults to `http://127.0.0.1:8011`.
+`PROCESSOR_CONTROL_SECRET` must match the credential configured for the local
+simulated processor. It is required at runtime and must not contain a hosted
+or production credential.
 
 ## Verification
 

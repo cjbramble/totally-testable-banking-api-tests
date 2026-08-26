@@ -61,6 +61,7 @@ def test_created_withdrawal_can_be_retrieved_by_its_owner(
 def test_outsider_cannot_retrieve_another_users_withdrawal(
     banking_api_client: BankingApiClient,
     funded_account,
+    registered_user_factory,
 ) -> None:
     withdrawal = banking_api_client.create_withdrawal(
         source_account_id=funded_account.account.id,
@@ -69,17 +70,10 @@ def test_outsider_cannot_retrieve_another_users_withdrawal(
         idempotency_key=f"withdrawal-{uuid4()}",
     )
 
-    outsider_id = uuid4().hex
-    outsider_email = f"api-test-user-{outsider_id}@example.com"
-    outsider_password = f"Test-user-{outsider_id}"
-    banking_api_client.register_user(
-        email=outsider_email,
-        display_name="Outsider Test User",
-        password=outsider_password,
-    )
+    outsider = registered_user_factory(display_name="Outsider Test User")
     outsider_token = banking_api_client.login(
-        email=outsider_email,
-        password=outsider_password,
+        email=outsider.email,
+        password=outsider.password,
     )
 
     with pytest.raises(UnexpectedStatusError) as exc_info:

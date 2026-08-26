@@ -201,6 +201,7 @@ def test_changed_withdrawal_payload_with_reused_key_is_rejected_without_addition
 def test_two_users_can_use_the_same_withdrawal_key_independently(
     banking_api_client: BankingApiClient,
     registered_user,
+    registered_user_factory,
 ) -> None:
     first_token = banking_api_client.login(
         email=registered_user.email,
@@ -210,17 +211,10 @@ def test_two_users_can_use_the_same_withdrawal_key_independently(
         access_token=first_token.access_token,
     )[0]
 
-    second_id = uuid4().hex
-    second_email = f"api-test-user-{second_id}@example.com"
-    second_password = f"Test-user-{second_id}"
-    banking_api_client.register_user(
-        email=second_email,
-        display_name="Second Test User",
-        password=second_password,
-    )
+    second_user = registered_user_factory(display_name="Second Test User")
     second_token = banking_api_client.login(
-        email=second_email,
-        password=second_password,
+        email=second_user.email,
+        password=second_user.password,
     )
     second_account = banking_api_client.list_accounts(
         access_token=second_token.access_token,

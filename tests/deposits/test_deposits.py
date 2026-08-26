@@ -1,4 +1,4 @@
-"""Live deposit contract, ownership, and terminal balance tests."""
+"""Live deposit lifecycle, ownership, and terminal balance tests."""
 
 import time
 from uuid import uuid4

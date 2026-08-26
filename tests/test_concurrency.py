@@ -1,5 +1,6 @@
 """Controlled races with durable financial postconditions."""
 
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from decimal import Decimal
@@ -10,6 +11,7 @@ import pytest
 
 from totally_testable_banking_api_tests.api_models import (
     AccountResponse,
+    ActivityDirection,
     ProductAccountType,
     TransferResponse,
 )
@@ -45,6 +47,42 @@ def _register_checking_account(
     return _AuthenticatedCheckingAccount(
         access_token=token.access_token,
         account=account,
+    )
+
+
+def _fund_checking_account(
+    banking_api_client: BankingApiClient,
+    account: _AuthenticatedCheckingAccount,
+    *,
+    amount: str,
+) -> _AuthenticatedCheckingAccount:
+    deposit = banking_api_client.create_deposit(
+        destination_account_id=account.account.id,
+        amount=amount,
+        access_token=account.access_token,
+        idempotency_key=f"deposit-{uuid4()}",
+    )
+    deadline = time.monotonic() + 10.0
+
+    while True:
+        current = banking_api_client.get_deposit(
+            instruction_id=deposit.id,
+            access_token=account.access_token,
+        )
+        if current.status == "SETTLED":
+            break
+        if current.status == "FAILED":
+            pytest.fail(f"Funding deposit failed with {current.failure_code!r}")
+        if time.monotonic() >= deadline:
+            pytest.fail(f"Funding deposit did not settle; final status was {current.status!r}")
+        time.sleep(0.1)
+
+    return _AuthenticatedCheckingAccount(
+        access_token=account.access_token,
+        account=banking_api_client.get_account(
+            account_id=account.account.id,
+            access_token=account.access_token,
+        ),
     )
 
 
@@ -221,3 +259,106 @@ def test_competing_transfers_cannot_overspend_one_account(
     assert len(new_activity) == 1
     assert new_activity[0].operation_id == posted[0].id
     assert new_activity[0].status == "POSTED"
+
+
+@pytest.mark.concurrency
+@pytest.mark.invariant
+def test_opposing_direction_transfers_both_post_with_coherent_balances(
+    banking_api_client: BankingApiClient,
+    funded_account,
+) -> None:
+    account_a = _AuthenticatedCheckingAccount(
+        access_token=funded_account.access_token,
+        account=funded_account.account,
+    )
+    account_b = _fund_checking_account(
+        banking_api_client,
+        _register_checking_account(banking_api_client),
+        amount="100.00",
+    )
+    activity_a_before = banking_api_client.list_activity(
+        access_token=account_a.access_token,
+        limit=100,
+    )
+    activity_b_before = banking_api_client.list_activity(
+        access_token=account_b.access_token,
+        limit=100,
+    )
+    amount_a_to_b = Decimal("30.00")
+    amount_b_to_a = Decimal("20.00")
+    release = Barrier(3)
+
+    def submit_transfer(
+        source: _AuthenticatedCheckingAccount,
+        destination: _AuthenticatedCheckingAccount,
+        amount: Decimal,
+    ) -> TransferResponse:
+        release.wait(timeout=5.0)
+        return banking_api_client.create_transfer(
+            source_account_id=source.account.id,
+            destination_account_id=destination.account.id,
+            amount=str(amount),
+            access_token=source.access_token,
+            idempotency_key=f"opposing-transfer-{uuid4()}",
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [
+            executor.submit(submit_transfer, account_a, account_b, amount_a_to_b),
+            executor.submit(submit_transfer, account_b, account_a, amount_b_to_a),
+        ]
+        release.wait(timeout=5.0)
+        results = [future.result(timeout=10.0) for future in futures]
+
+    account_a_after = banking_api_client.get_account(
+        account_id=account_a.account.id,
+        access_token=account_a.access_token,
+    )
+    account_b_after = banking_api_client.get_account(
+        account_id=account_b.account.id,
+        access_token=account_b.access_token,
+    )
+    activity_a_after = banking_api_client.list_activity(
+        access_token=account_a.access_token,
+        limit=100,
+    )
+    activity_b_after = banking_api_client.list_activity(
+        access_token=account_b.access_token,
+        limit=100,
+    )
+    operation_ids = {result.id for result in results}
+    activity_a_before_ids = {item.operation_id for item in activity_a_before.items}
+    activity_b_before_ids = {item.operation_id for item in activity_b_before.items}
+    new_activity_a = [
+        item for item in activity_a_after.items if item.operation_id not in activity_a_before_ids
+    ]
+    new_activity_b = [
+        item for item in activity_b_after.items if item.operation_id not in activity_b_before_ids
+    ]
+
+    assert len(operation_ids) == 2
+    assert all(result.status == "POSTED" for result in results)
+    assert Decimal(account_a_after.settled_balance) == (
+        Decimal(account_a.account.settled_balance) - amount_a_to_b + amount_b_to_a
+    )
+    assert Decimal(account_a_after.available_balance) == (
+        Decimal(account_a.account.available_balance) - amount_a_to_b + amount_b_to_a
+    )
+    assert Decimal(account_b_after.settled_balance) == (
+        Decimal(account_b.account.settled_balance) - amount_b_to_a + amount_a_to_b
+    )
+    assert Decimal(account_b_after.available_balance) == (
+        Decimal(account_b.account.available_balance) - amount_b_to_a + amount_a_to_b
+    )
+    assert {item.operation_id for item in new_activity_a} == operation_ids
+    assert {item.operation_id for item in new_activity_b} == operation_ids
+    assert {item.direction for item in new_activity_a} == {
+        ActivityDirection.SENT,
+        ActivityDirection.RECEIVED,
+    }
+    assert {item.direction for item in new_activity_b} == {
+        ActivityDirection.SENT,
+        ActivityDirection.RECEIVED,
+    }
+    assert all(item.status == "POSTED" for item in new_activity_a)
+    assert all(item.status == "POSTED" for item in new_activity_b)

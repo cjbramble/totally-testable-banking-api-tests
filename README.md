@@ -49,7 +49,13 @@ pytest -q -m smoke
 pytest -q -m unit
 pytest -q -m contract
 pytest -q -m concurrency
+pytest -q -n 2 -m "not concurrency"
 ```
+
+The default complete run remains serial. The `-n 2` command starts two xdist worker processes
+and checks that ordinary tests remain isolated when their execution order overlaps. Deliberate
+concurrency tests run separately because they already synchronize multiple requests within one
+test.
 
 Directories group tests by owned behavior:
 

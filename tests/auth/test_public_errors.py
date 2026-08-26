@@ -1,4 +1,4 @@
-"""Live contract evidence for unauthenticated public API failures."""
+"""Live authentication-error evidence for unauthenticated API access."""
 
 import pytest
 

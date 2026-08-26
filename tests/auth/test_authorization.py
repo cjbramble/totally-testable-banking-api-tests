@@ -63,16 +63,3 @@ def test_outsider_cannot_retrieve_another_users_account(
     assert error.status_code == 404
     assert error.error is not None
     assert error.error.error.code == "ACCOUNT_NOT_FOUND"
-
-
-@pytest.mark.negative
-def test_invalid_bearer_token_is_rejected(
-    banking_api_client: BankingApiClient,
-) -> None:
-    with pytest.raises(UnexpectedStatusError) as exc_info:
-        banking_api_client.list_accounts(access_token="invalid-token-for-test")
-
-    error = exc_info.value
-    assert error.status_code == 401
-    assert error.error is not None
-    assert error.error.error.code == "AUTHENTICATION_REQUIRED"

@@ -2,6 +2,7 @@
 
 import json
 import uuid
+from datetime import date
 
 import httpx
 import pytest
@@ -184,7 +185,14 @@ def test_create_transfer_sends_request_and_parses_transfer_response() -> None:
     assert transfer.transfer_kind == "P2P"
 
 
-def test_create_account_transfer_sends_request_and_parses_response() -> None:
+@pytest.mark.parametrize(
+    "scheduled_for",
+    [None, date(2026, 8, 24)],
+    ids=["immediate", "scheduled"],
+)
+def test_create_account_transfer_serializes_schedule_and_parses_response(
+    scheduled_for: date | None,
+) -> None:
     source_account_id = uuid.UUID("00000000-0000-0000-0000-000000000001")
     destination_account_id = uuid.UUID("00000000-0000-0000-0000-000000000002")
 
@@ -193,11 +201,14 @@ def test_create_account_transfer_sends_request_and_parses_response() -> None:
         assert request.url.path == "/api/v1/account-transfers"
         assert request.headers["Authorization"] == "Bearer access-token"
         assert request.headers["Idempotency-Key"] == "account-transfer-key"
-        assert json.loads(request.content) == {
+        expected_body = {
             "source_account_id": str(source_account_id),
             "destination_account_id": str(destination_account_id),
             "amount": "25.00",
         }
+        if scheduled_for is not None:
+            expected_body["scheduled_for"] = scheduled_for.isoformat()
+        assert json.loads(request.content) == expected_body
         return httpx.Response(
             201,
             json={
@@ -208,12 +219,12 @@ def test_create_account_transfer_sends_request_and_parses_response() -> None:
                 "destination_account_id": str(destination_account_id),
                 "amount": "25.00",
                 "currency": "USD",
-                "status": "POSTED",
+                "status": "SCHEDULED" if scheduled_for is not None else "POSTED",
                 "transfer_kind": "OWN_ACCOUNT",
                 "created_at": "2026-08-23T12:00:00Z",
-                "scheduled_for": None,
+                "scheduled_for": scheduled_for.isoformat() if scheduled_for else None,
                 "failure_code": None,
-                "completed_at": "2026-08-23T12:00:00Z",
+                "completed_at": (None if scheduled_for else "2026-08-23T12:00:00Z"),
             },
             request=request,
         )
@@ -232,6 +243,7 @@ def test_create_account_transfer_sends_request_and_parses_response() -> None:
             amount="25.00",
             access_token="access-token",
             idempotency_key="account-transfer-key",
+            scheduled_for=scheduled_for,
         )
     finally:
         transport.close()
@@ -239,6 +251,7 @@ def test_create_account_transfer_sends_request_and_parses_response() -> None:
     assert str(transfer.id) == "00000000-0000-4000-8000-000000000003"
     assert transfer.amount == "25.00"
     assert transfer.transfer_kind == "OWN_ACCOUNT"
+    assert transfer.scheduled_for == scheduled_for
 
 
 def test_list_activity_sends_pagination_and_parses_page() -> None:

@@ -1,5 +1,6 @@
 import uuid
 from collections.abc import Mapping
+from datetime import date
 
 from totally_testable_banking_api_tests.api_models import (
     AccountResponse,
@@ -244,7 +245,16 @@ class BankingApiClient:
         amount: str,
         access_token: str,
         idempotency_key: str,
+        scheduled_for: date | None = None,
     ) -> TransferResponse:
+        payload: dict[str, object] = {
+            "source_account_id": str(source_account_id),
+            "destination_account_id": str(destination_account_id),
+            "amount": amount,
+        }
+        if scheduled_for is not None:
+            payload["scheduled_for"] = scheduled_for.isoformat()
+
         response = self._transport.request(
             "POST",
             "/api/v1/account-transfers",
@@ -253,11 +263,7 @@ class BankingApiClient:
                 "Authorization": f"Bearer {access_token}",
                 "Idempotency-Key": idempotency_key,
             },
-            json_body={
-                "source_account_id": str(source_account_id),
-                "destination_account_id": str(destination_account_id),
-                "amount": amount,
-            },
+            json_body=payload,
         )
         return TransferResponse.model_validate(response.json())
 

@@ -1,6 +1,7 @@
 """Adapter tests for operation-scoped simulated-processor configuration."""
 
 import json
+import uuid
 
 import httpx
 import pytest
@@ -52,3 +53,44 @@ def test_configure_scenario_sends_operation_scoped_configuration() -> None:
     assert configured.operation is ProcessorOperation.DEPOSIT
     assert configured.operation_key == operation_key
     assert configured.scenario is ProcessorScenario.DEPOSIT_DECLINE
+
+
+def test_settle_pending_command_targets_exact_bank_instruction() -> None:
+    bank_instruction_id = uuid.UUID("017f22e2-79b0-7cc3-98c4-dc0c0c07398f")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == (f"/internal/v1/commands/{bank_instruction_id}/settle")
+        assert request.headers["Authorization"] == "Bearer processor-control-token"
+        assert request.content == b""
+        return httpx.Response(
+            200,
+            json={
+                "operation": "WITHDRAWAL",
+                "operation_key": "withdrawal-pending-123",
+                "bank_instruction_id": str(bank_instruction_id),
+                "status": "TERMINAL",
+                "outcome": "SETTLED",
+            },
+            request=request,
+        )
+
+    transport = ApiClient(
+        base_url="http://127.0.0.1:8011",
+        timeout=5.0,
+        transport=httpx.MockTransport(handler),
+    )
+    client = ProcessorControlClient(transport, token="processor-control-token")
+
+    try:
+        settled = client.settle_pending_command(
+            bank_instruction_id=bank_instruction_id,
+        )
+    finally:
+        transport.close()
+
+    assert settled.operation is ProcessorOperation.WITHDRAWAL
+    assert settled.operation_key == "withdrawal-pending-123"
+    assert settled.bank_instruction_id == bank_instruction_id
+    assert settled.status == "TERMINAL"
+    assert settled.outcome == "SETTLED"

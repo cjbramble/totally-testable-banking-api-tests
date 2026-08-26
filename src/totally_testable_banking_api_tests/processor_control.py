@@ -1,6 +1,8 @@
 """Client for operation-scoped behavior at the local simulated processor."""
 
 import enum
+import uuid
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -19,6 +21,7 @@ class ProcessorScenario(enum.StrEnum):
     WITHDRAWAL_DECLINE = "WITHDRAWAL_DECLINE"
     WITHDRAWAL_ACCEPT_THEN_TIMEOUT = "WITHDRAWAL_ACCEPT_THEN_TIMEOUT"
     WITHDRAWAL_DUPLICATE_CALLBACK = "WITHDRAWAL_DUPLICATE_CALLBACK"
+    WITHDRAWAL_PENDING = "WITHDRAWAL_PENDING"
 
 
 class ConfiguredProcessorScenario(BaseModel):
@@ -29,6 +32,18 @@ class ConfiguredProcessorScenario(BaseModel):
     operation: ProcessorOperation
     operation_key: str
     scenario: ProcessorScenario
+
+
+class ControlledSettlement(BaseModel):
+    """Published response confirming exact controlled command settlement."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    operation: Literal[ProcessorOperation.WITHDRAWAL]
+    operation_key: str
+    bank_instruction_id: uuid.UUID
+    status: Literal["TERMINAL"]
+    outcome: Literal["SETTLED"]
 
 
 class ProcessorControlClient:
@@ -53,3 +68,16 @@ class ProcessorControlClient:
             json_body={"scenario": scenario.value},
         )
         return ConfiguredProcessorScenario.model_validate(response.json())
+
+    def settle_pending_command(
+        self,
+        *,
+        bank_instruction_id: uuid.UUID,
+    ) -> ControlledSettlement:
+        response = self._transport.request(
+            "POST",
+            f"/internal/v1/commands/{bank_instruction_id}/settle",
+            expected_status=200,
+            headers={"Authorization": f"Bearer {self._token}"},
+        )
+        return ControlledSettlement.model_validate(response.json())

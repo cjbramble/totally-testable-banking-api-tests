@@ -375,3 +375,51 @@ def test_altered_activity_cursor_is_rejected(
     assert error.status_code == 422
     assert error.error is not None
     assert error.error.error.code == "INVALID_CURSOR"
+
+
+@pytest.mark.invariant
+def test_activity_cursor_from_another_user_does_not_expose_owner_activity(
+    banking_api_client: BankingApiClient,
+    registered_user,
+) -> None:
+    other_id = uuid4().hex
+    other_email = f"api-test-user-{other_id}@example.com"
+    other_password = f"Test-user-{other_id}"
+    banking_api_client.register_user(
+        email=other_email,
+        display_name="Other Test User",
+        password=other_password,
+    )
+    other_user = _create_funded_activity_user(
+        banking_api_client,
+        email=other_email,
+        password=other_password,
+    )
+    cursor_owner = _create_funded_activity_user(
+        banking_api_client,
+        email=registered_user.email,
+        password=registered_user.password,
+    )
+    owner_transfer = banking_api_client.create_account_transfer(
+        source_account_id=cursor_owner.checking.id,
+        destination_account_id=cursor_owner.savings.id,
+        amount="25.00",
+        access_token=cursor_owner.access_token,
+        idempotency_key=f"account-transfer-{uuid4()}",
+    )
+    owner_page = banking_api_client.list_activity(
+        access_token=cursor_owner.access_token,
+        limit=1,
+    )
+    owner_cursor = owner_page.next_cursor
+    assert owner_cursor is not None
+
+    other_page = banking_api_client.list_activity(
+        access_token=other_user.access_token,
+        limit=10,
+        cursor=owner_cursor,
+    )
+    returned_operation_ids = [item.operation_id for item in other_page.items]
+
+    assert returned_operation_ids == [other_user.deposit_id]
+    assert {owner_transfer.id, cursor_owner.deposit_id}.isdisjoint(returned_operation_ids)

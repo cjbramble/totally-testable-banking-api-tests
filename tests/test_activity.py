@@ -447,3 +447,31 @@ def test_activity_limit_accepts_documented_boundaries(
 
     assert page.items == []
     assert page.next_cursor is None
+
+
+@pytest.mark.negative
+@pytest.mark.parametrize(
+    "limit",
+    [0, 101],
+    ids=["below-minimum", "above-maximum"],
+)
+def test_activity_limit_rejects_values_outside_documented_range(
+    banking_api_client: BankingApiClient,
+    registered_user,
+    limit: int,
+) -> None:
+    token = banking_api_client.login(
+        email=registered_user.email,
+        password=registered_user.password,
+    )
+
+    with pytest.raises(UnexpectedStatusError) as exc_info:
+        banking_api_client.list_activity(
+            access_token=token.access_token,
+            limit=limit,
+        )
+
+    error = exc_info.value
+    assert error.status_code == 422
+    assert error.error is not None
+    assert error.error.error.code == "VALIDATION_ERROR"

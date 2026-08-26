@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -572,4 +573,80 @@ def test_own_account_transfer_rejects_foreign_source(
     ]
     assert [item.operation_id for item in other_activity_after.items] == [
         item.operation_id for item in other_activity_before.items
+    ]
+
+
+@pytest.mark.negative
+@pytest.mark.invariant
+@pytest.mark.parametrize(
+    "day_offset",
+    [-1, 0],
+    ids=["past", "today"],
+)
+def test_scheduled_account_transfer_rejects_non_future_date(
+    banking_api_client: BankingApiClient,
+    funded_account,
+    day_offset: int,
+) -> None:
+    savings_before = next(
+        account
+        for account in banking_api_client.list_accounts(
+            access_token=funded_account.access_token,
+        )
+        if account.account_type is ProductAccountType.SAVINGS
+    )
+    checking_before = banking_api_client.get_account(
+        account_id=funded_account.account.id,
+        access_token=funded_account.access_token,
+    )
+    activity_before = banking_api_client.list_activity(
+        access_token=funded_account.access_token,
+        limit=100,
+    )
+    banking_date = datetime.now(ZoneInfo("America/New_York")).date()
+    scheduled_for = banking_date + timedelta(days=day_offset)
+
+    with pytest.raises(UnexpectedStatusError) as exc_info:
+        banking_api_client.create_account_transfer(
+            source_account_id=checking_before.id,
+            destination_account_id=savings_before.id,
+            amount="25.00",
+            access_token=funded_account.access_token,
+            idempotency_key=f"account-transfer-{uuid4()}",
+            scheduled_for=scheduled_for,
+        )
+
+    checking_after = banking_api_client.get_account(
+        account_id=checking_before.id,
+        access_token=funded_account.access_token,
+    )
+    savings_after = banking_api_client.get_account(
+        account_id=savings_before.id,
+        access_token=funded_account.access_token,
+    )
+    activity_after = banking_api_client.list_activity(
+        access_token=funded_account.access_token,
+        limit=100,
+    )
+    error = exc_info.value
+
+    assert error.status_code == 422
+    assert error.error is not None
+    assert error.error.error.code == "SCHEDULED_DATE_MUST_BE_FUTURE"
+    assert (
+        checking_after.settled_balance,
+        checking_after.available_balance,
+    ) == (
+        checking_before.settled_balance,
+        checking_before.available_balance,
+    )
+    assert (
+        savings_after.settled_balance,
+        savings_after.available_balance,
+    ) == (
+        savings_before.settled_balance,
+        savings_before.available_balance,
+    )
+    assert [item.operation_id for item in activity_after.items] == [
+        item.operation_id for item in activity_before.items
     ]

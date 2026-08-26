@@ -254,6 +254,54 @@ def test_create_account_transfer_serializes_schedule_and_parses_response(
     assert transfer.scheduled_for == scheduled_for
 
 
+def test_cancel_transfer_sends_request_and_parses_canceled_response() -> None:
+    transfer_id = uuid.UUID("00000000-0000-4000-8000-000000000003")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == f"/api/v1/transfers/{transfer_id}/cancel"
+        assert request.headers["Authorization"] == "Bearer access-token"
+        return httpx.Response(
+            200,
+            json={
+                "id": str(transfer_id),
+                "sender_user_id": "00000000-0000-4000-8000-000000000004",
+                "recipient_user_id": "00000000-0000-4000-8000-000000000004",
+                "source_account_id": "00000000-0000-0000-0000-000000000001",
+                "destination_account_id": "00000000-0000-0000-0000-000000000002",
+                "amount": "25.00",
+                "currency": "USD",
+                "status": "CANCELED",
+                "transfer_kind": "OWN_ACCOUNT",
+                "created_at": "2026-08-23T12:00:00Z",
+                "scheduled_for": "2026-08-30",
+                "failure_code": None,
+                "completed_at": "2026-08-24T12:00:00Z",
+            },
+            request=request,
+        )
+
+    transport = ApiClient(
+        base_url="http://127.0.0.1:8009",
+        timeout=5.0,
+        transport=httpx.MockTransport(handler),
+    )
+    client = BankingApiClient(transport)
+
+    try:
+        canceled = client.cancel_transfer(
+            transfer_id=transfer_id,
+            access_token="access-token",
+        )
+    finally:
+        transport.close()
+
+    assert canceled.id == transfer_id
+    assert canceled.status == "CANCELED"
+    assert canceled.scheduled_for == date(2026, 8, 30)
+    assert canceled.completed_at is not None
+
+
 def test_list_activity_sends_pagination_and_parses_page() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/activity"

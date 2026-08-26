@@ -280,3 +280,17 @@ class BankingApiClient:
             headers={"Authorization": f"Bearer {access_token}"},
         )
         return TransferResponse.model_validate(response.json())
+
+    def cancel_transfer(
+        self,
+        *,
+        transfer_id: uuid.UUID,
+        access_token: str,
+    ) -> TransferResponse:
+        response = self._transport.request(
+            "POST",
+            f"/api/v1/transfers/{transfer_id}/cancel",
+            expected_status=200,
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        return TransferResponse.model_validate(response.json())

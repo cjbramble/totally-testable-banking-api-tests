@@ -45,6 +45,27 @@ def _wait_for_deposit_settlement(
         time.sleep(0.1)
 
 
+def _wait_for_withdrawal_settlement(
+    banking_api_client: BankingApiClient,
+    *,
+    instruction_id: UUID,
+    access_token: str,
+) -> None:
+    deadline = time.monotonic() + 10.0
+    while True:
+        current = banking_api_client.get_withdrawal(
+            instruction_id=instruction_id,
+            access_token=access_token,
+        )
+        if current.status == "SETTLED":
+            return
+        if current.status == "FAILED":
+            pytest.fail(f"Withdrawal failed with {current.failure_code!r}")
+        if time.monotonic() >= deadline:
+            pytest.fail(f"Withdrawal did not settle; final status was {current.status!r}")
+        time.sleep(0.1)
+
+
 def _create_funded_activity_user(
     banking_api_client: BankingApiClient,
     *,
@@ -475,3 +496,87 @@ def test_activity_limit_rejects_values_outside_documented_range(
     assert error.status_code == 422
     assert error.error is not None
     assert error.error.error.code == "VALIDATION_ERROR"
+
+
+@pytest.mark.invariant
+def test_mixed_activity_cursor_traversal_preserves_identity_and_order(
+    banking_api_client: BankingApiClient,
+    registered_user,
+) -> None:
+    activity_user = _create_funded_activity_user(
+        banking_api_client,
+        email=registered_user.email,
+        password=registered_user.password,
+    )
+    recipient_id = uuid4().hex
+    recipient_email = f"api-test-user-{recipient_id}@example.com"
+    recipient_password = f"Test-user-{recipient_id}"
+    banking_api_client.register_user(
+        email=recipient_email,
+        display_name="Recipient Test User",
+        password=recipient_password,
+    )
+    recipient_token = banking_api_client.login(
+        email=recipient_email,
+        password=recipient_password,
+    )
+    recipient_accounts = banking_api_client.list_accounts(
+        access_token=recipient_token.access_token,
+    )
+    recipient_checking = next(
+        account
+        for account in recipient_accounts
+        if account.account_type is ProductAccountType.CHECKING
+    )
+    transfer = banking_api_client.create_transfer(
+        source_account_id=activity_user.checking.id,
+        destination_account_id=recipient_checking.id,
+        amount="20.00",
+        access_token=activity_user.access_token,
+        idempotency_key=f"transfer-{uuid4()}",
+    )
+    account_transfer = banking_api_client.create_account_transfer(
+        source_account_id=activity_user.checking.id,
+        destination_account_id=activity_user.savings.id,
+        amount="25.00",
+        access_token=activity_user.access_token,
+        idempotency_key=f"account-transfer-{uuid4()}",
+    )
+    withdrawal = banking_api_client.create_withdrawal(
+        source_account_id=activity_user.savings.id,
+        amount="10.00",
+        access_token=activity_user.access_token,
+        idempotency_key=f"withdrawal-{uuid4()}",
+    )
+    _wait_for_withdrawal_settlement(
+        banking_api_client,
+        instruction_id=withdrawal.id,
+        access_token=activity_user.access_token,
+    )
+
+    first_page = banking_api_client.list_activity(
+        access_token=activity_user.access_token,
+        limit=2,
+    )
+    cursor = first_page.next_cursor
+    assert cursor is not None
+    second_page = banking_api_client.list_activity(
+        access_token=activity_user.access_token,
+        limit=2,
+        cursor=cursor,
+    )
+    collected_items = [*first_page.items, *second_page.items]
+
+    assert [item.operation_id for item in collected_items] == [
+        withdrawal.id,
+        account_transfer.id,
+        transfer.id,
+        activity_user.deposit_id,
+    ]
+    assert [item.kind for item in collected_items] == [
+        ActivityKind.WITHDRAWAL,
+        ActivityKind.ACCOUNT_TRANSFER,
+        ActivityKind.TRANSFER,
+        ActivityKind.DEPOSIT,
+    ]
+    assert second_page.next_cursor is None

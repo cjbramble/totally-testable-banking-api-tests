@@ -63,6 +63,12 @@ Validate hermetic-runner prerequisites without changing Docker state:
 ./scripts/run-hermetic.sh --preflight
 ```
 
+Build fresh migration images, apply both database schemas, and verify isolated teardown:
+
+```bash
+./scripts/run-hermetic.sh --infrastructure-check
+```
+
 Directories group tests by owned behavior:
 
 - `activity/` — activity projections and keyset pagination;

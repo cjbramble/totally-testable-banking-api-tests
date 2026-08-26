@@ -423,3 +423,27 @@ def test_activity_cursor_from_another_user_does_not_expose_owner_activity(
 
     assert returned_operation_ids == [other_user.deposit_id]
     assert {owner_transfer.id, cursor_owner.deposit_id}.isdisjoint(returned_operation_ids)
+
+
+@pytest.mark.parametrize(
+    "limit",
+    [1, 100],
+    ids=["minimum", "maximum"],
+)
+def test_activity_limit_accepts_documented_boundaries(
+    banking_api_client: BankingApiClient,
+    registered_user,
+    limit: int,
+) -> None:
+    token = banking_api_client.login(
+        email=registered_user.email,
+        password=registered_user.password,
+    )
+
+    page = banking_api_client.list_activity(
+        access_token=token.access_token,
+        limit=limit,
+    )
+
+    assert page.items == []
+    assert page.next_cursor is None

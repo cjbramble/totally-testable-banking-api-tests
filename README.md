@@ -55,11 +55,10 @@ Directories group tests by owned behavior:
 
 - `activity/` — activity projections and keyset pagination;
 - `auth/` — registration, authentication, browser sessions, and authorization;
-- `concurrency/` — deliberately synchronized financial races;
 - `deposits/` and `withdrawals/` — asynchronous lifecycle and idempotency behavior;
 - `processor/` — the banking-service and simulated-processor boundary;
 - `smoke/` — essential live-service readiness;
-- `transfers/` — P2P and own-account transfer behavior;
+- `transfers/` — P2P, own-account, idempotency, rejection, and concurrency behavior;
 - `unit/` — isolated tests of this automation package.
 
 Directories answer where behavior is owned. Markers select cross-cutting purpose or risk.

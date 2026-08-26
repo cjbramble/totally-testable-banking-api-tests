@@ -335,3 +335,43 @@ def test_malformed_activity_cursor_is_rejected(
     assert error.status_code == 422
     assert error.error is not None
     assert error.error.error.code == "INVALID_CURSOR"
+
+
+@pytest.mark.negative
+def test_altered_activity_cursor_is_rejected(
+    banking_api_client: BankingApiClient,
+    registered_user,
+) -> None:
+    activity_user = _create_funded_activity_user(
+        banking_api_client,
+        email=registered_user.email,
+        password=registered_user.password,
+    )
+    banking_api_client.create_account_transfer(
+        source_account_id=activity_user.checking.id,
+        destination_account_id=activity_user.savings.id,
+        amount="25.00",
+        access_token=activity_user.access_token,
+        idempotency_key=f"account-transfer-{uuid4()}",
+    )
+    first_page = banking_api_client.list_activity(
+        access_token=activity_user.access_token,
+        limit=1,
+    )
+    cursor = first_page.next_cursor
+    assert cursor is not None
+
+    mutation_index = len(cursor) // 2
+    replacement = "A" if cursor[mutation_index] != "A" else "B"
+    altered_cursor = cursor[:mutation_index] + replacement + cursor[mutation_index + 1 :]
+
+    with pytest.raises(UnexpectedStatusError) as exc_info:
+        banking_api_client.list_activity(
+            access_token=activity_user.access_token,
+            cursor=altered_cursor,
+        )
+
+    error = exc_info.value
+    assert error.status_code == 422
+    assert error.error is not None
+    assert error.error.error.code == "INVALID_CURSOR"

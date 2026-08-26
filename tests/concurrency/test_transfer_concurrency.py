@@ -1,4 +1,4 @@
-"""Controlled races with durable financial postconditions."""
+"""Controlled transfer races with durable financial postconditions."""
 
 import time
 from concurrent.futures import ThreadPoolExecutor

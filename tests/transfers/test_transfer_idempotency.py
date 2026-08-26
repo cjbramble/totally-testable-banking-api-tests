@@ -82,6 +82,7 @@ def _fund_account_and_wait_for_settlement(
 def funded_transfer_context(
     banking_api_client: BankingApiClient,
     registered_user,
+    registered_user_factory,
 ) -> FundedTransferContext:
     """Create fresh participants with a settled sender balance for each test."""
 
@@ -99,17 +100,10 @@ def funded_transfer_context(
         access_token=sender_token.access_token,
     )
 
-    recipient_id = uuid4().hex
-    recipient_email = f"api-test-user-{recipient_id}@example.com"
-    recipient_password = f"Test-user-{recipient_id}"
-    banking_api_client.register_user(
-        email=recipient_email,
-        display_name="Recipient Test User",
-        password=recipient_password,
-    )
+    recipient = registered_user_factory(display_name="Recipient Test User")
     recipient_token = banking_api_client.login(
-        email=recipient_email,
-        password=recipient_password,
+        email=recipient.email,
+        password=recipient.password,
     )
     destination_account = banking_api_client.list_accounts(
         access_token=recipient_token.access_token,

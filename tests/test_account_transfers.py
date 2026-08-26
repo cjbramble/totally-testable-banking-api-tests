@@ -343,3 +343,52 @@ def test_completed_account_transfer_cannot_be_canceled(
         savings_before_rejection.settled_balance,
         savings_before_rejection.available_balance,
     )
+
+
+@pytest.mark.negative
+@pytest.mark.invariant
+def test_own_account_transfer_rejects_same_source_and_destination(
+    banking_api_client: BankingApiClient,
+    funded_account,
+) -> None:
+    account_before = banking_api_client.get_account(
+        account_id=funded_account.account.id,
+        access_token=funded_account.access_token,
+    )
+    activity_before = banking_api_client.list_activity(
+        access_token=funded_account.access_token,
+        limit=100,
+    )
+
+    with pytest.raises(UnexpectedStatusError) as exc_info:
+        banking_api_client.create_account_transfer(
+            source_account_id=account_before.id,
+            destination_account_id=account_before.id,
+            amount="25.00",
+            access_token=funded_account.access_token,
+            idempotency_key=f"account-transfer-{uuid4()}",
+        )
+
+    account_after = banking_api_client.get_account(
+        account_id=account_before.id,
+        access_token=funded_account.access_token,
+    )
+    activity_after = banking_api_client.list_activity(
+        access_token=funded_account.access_token,
+        limit=100,
+    )
+    error = exc_info.value
+
+    assert error.status_code == 422
+    assert error.error is not None
+    assert error.error.error.code == "OWN_ACCOUNT_TRANSFER_REQUIRES_DISTINCT_ACCOUNTS"
+    assert (
+        account_after.settled_balance,
+        account_after.available_balance,
+    ) == (
+        account_before.settled_balance,
+        account_before.available_balance,
+    )
+    assert [item.operation_id for item in activity_after.items] == [
+        item.operation_id for item in activity_before.items
+    ]

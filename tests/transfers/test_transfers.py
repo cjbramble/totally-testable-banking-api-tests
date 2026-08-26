@@ -14,6 +14,7 @@ from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 def test_p2p_transfer_moves_exact_amount_between_accounts(
     banking_api_client: BankingApiClient,
     registered_user,
+    registered_user_factory,
 ) -> None:
     sender_token = banking_api_client.login(
         email=registered_user.email,
@@ -23,17 +24,10 @@ def test_p2p_transfer_moves_exact_amount_between_accounts(
         access_token=sender_token.access_token,
     )[0]
 
-    recipient_id = uuid4().hex
-    recipient_email = f"api-test-user-{recipient_id}@example.com"
-    recipient_password = f"Test-user-{recipient_id}"
-    recipient = banking_api_client.register_user(
-        email=recipient_email,
-        display_name="Recipient Test User",
-        password=recipient_password,
-    )
+    recipient = registered_user_factory(display_name="Recipient Test User")
     recipient_token = banking_api_client.login(
-        email=recipient_email,
-        password=recipient_password,
+        email=recipient.email,
+        password=recipient.password,
     )
 
     funding = banking_api_client.create_deposit(
@@ -82,7 +76,7 @@ def test_p2p_transfer_moves_exact_amount_between_accounts(
     )[0]
 
     assert transfer.sender_user_id == registered_user.user.id
-    assert transfer.recipient_user_id == recipient.id
+    assert transfer.recipient_user_id == recipient.user.id
     assert transfer.source_account_id == sender_before.id
     assert transfer.destination_account_id == recipient_before.id
     assert transfer.amount == "25.00"
@@ -102,6 +96,7 @@ def test_p2p_transfer_moves_exact_amount_between_accounts(
 def test_outsider_cannot_retrieve_another_users_transfer(
     banking_api_client: BankingApiClient,
     registered_user,
+    registered_user_factory,
 ) -> None:
     owner_token = banking_api_client.login(
         email=registered_user.email,
@@ -111,17 +106,10 @@ def test_outsider_cannot_retrieve_another_users_transfer(
         access_token=owner_token.access_token,
     )[0]
 
-    recipient_id = uuid4().hex
-    recipient_email = f"api-test-user-{recipient_id}@example.com"
-    recipient_password = f"Test-user-{recipient_id}"
-    banking_api_client.register_user(
-        email=recipient_email,
-        display_name="Recipient Test User",
-        password=recipient_password,
-    )
+    recipient = registered_user_factory(display_name="Recipient Test User")
     recipient_token = banking_api_client.login(
-        email=recipient_email,
-        password=recipient_password,
+        email=recipient.email,
+        password=recipient.password,
     )
     recipient_account = banking_api_client.list_accounts(
         access_token=recipient_token.access_token,
@@ -157,17 +145,10 @@ def test_outsider_cannot_retrieve_another_users_transfer(
         idempotency_key=f"transfer-{uuid4()}",
     )
 
-    outsider_id = uuid4().hex
-    outsider_email = f"api-test-user-{outsider_id}@example.com"
-    outsider_password = f"Test-user-{outsider_id}"
-    banking_api_client.register_user(
-        email=outsider_email,
-        display_name="Outsider Test User",
-        password=outsider_password,
-    )
+    outsider = registered_user_factory(display_name="Outsider Test User")
     outsider_token = banking_api_client.login(
-        email=outsider_email,
-        password=outsider_password,
+        email=outsider.email,
+        password=outsider.password,
     )
 
     with pytest.raises(UnexpectedStatusError) as exc_info:

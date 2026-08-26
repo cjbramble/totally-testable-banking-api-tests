@@ -1,16 +1,26 @@
-"""Two-party activity projection tests for completed financial operations."""
+"""Activity projection and keyset pagination tests."""
 
 import time
+from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 import pytest
 
 from totally_testable_banking_api_tests.api_models import (
+    AccountResponse,
     ActivityDirection,
     ActivityKind,
     ProductAccountType,
 )
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
+
+
+@dataclass(frozen=True)
+class _FundedActivityUser:
+    access_token: str
+    checking: AccountResponse
+    savings: AccountResponse
+    deposit_id: UUID
 
 
 def _wait_for_deposit_settlement(
@@ -32,6 +42,39 @@ def _wait_for_deposit_settlement(
         if time.monotonic() >= deadline:
             pytest.fail(f"Funding deposit did not settle; final status was {current.status!r}")
         time.sleep(0.1)
+
+
+def _create_funded_activity_user(
+    banking_api_client: BankingApiClient,
+    *,
+    email: str,
+    password: str,
+) -> _FundedActivityUser:
+    token = banking_api_client.login(email=email, password=password)
+    accounts = banking_api_client.list_accounts(access_token=token.access_token)
+    checking = next(
+        account for account in accounts if account.account_type is ProductAccountType.CHECKING
+    )
+    savings = next(
+        account for account in accounts if account.account_type is ProductAccountType.SAVINGS
+    )
+    deposit = banking_api_client.create_deposit(
+        destination_account_id=checking.id,
+        amount="100.00",
+        access_token=token.access_token,
+        idempotency_key=f"deposit-{uuid4()}",
+    )
+    _wait_for_deposit_settlement(
+        banking_api_client,
+        instruction_id=deposit.id,
+        access_token=token.access_token,
+    )
+    return _FundedActivityUser(
+        access_token=token.access_token,
+        checking=checking,
+        savings=savings,
+        deposit_id=deposit.id,
+    )
 
 
 @pytest.mark.invariant
@@ -117,40 +160,23 @@ def test_activity_page_boundaries_return_expected_operations_without_cursor(
     banking_api_client: BankingApiClient,
     registered_user,
 ) -> None:
-    token = banking_api_client.login(
+    activity_user = _create_funded_activity_user(
+        banking_api_client,
         email=registered_user.email,
         password=registered_user.password,
     )
-    accounts = banking_api_client.list_accounts(access_token=token.access_token)
-    checking = next(
-        account for account in accounts if account.account_type is ProductAccountType.CHECKING
-    )
-    savings = next(
-        account for account in accounts if account.account_type is ProductAccountType.SAVINGS
-    )
-    deposit = banking_api_client.create_deposit(
-        destination_account_id=checking.id,
-        amount="100.00",
-        access_token=token.access_token,
-        idempotency_key=f"deposit-{uuid4()}",
-    )
-    _wait_for_deposit_settlement(
-        banking_api_client,
-        instruction_id=deposit.id,
-        access_token=token.access_token,
-    )
     account_transfer = banking_api_client.create_account_transfer(
-        source_account_id=checking.id,
-        destination_account_id=savings.id,
+        source_account_id=activity_user.checking.id,
+        destination_account_id=activity_user.savings.id,
         amount="25.00",
-        access_token=token.access_token,
+        access_token=activity_user.access_token,
         idempotency_key=f"account-transfer-{uuid4()}",
     )
 
-    expected_operation_ids = [account_transfer.id, deposit.id]
+    expected_operation_ids = [account_transfer.id, activity_user.deposit_id]
 
     exact_page = banking_api_client.list_activity(
-        access_token=token.access_token,
+        access_token=activity_user.access_token,
         limit=2,
     )
 
@@ -162,9 +188,60 @@ def test_activity_page_boundaries_return_expected_operations_without_cursor(
     assert exact_page.next_cursor is None
 
     partial_page = banking_api_client.list_activity(
-        access_token=token.access_token,
+        access_token=activity_user.access_token,
         limit=3,
     )
 
     assert [item.operation_id for item in partial_page.items] == expected_operation_ids
     assert partial_page.next_cursor is None
+
+
+@pytest.mark.invariant
+def test_activity_cursor_traversal_has_no_duplicate_or_missing_operations(
+    banking_api_client: BankingApiClient,
+    registered_user,
+) -> None:
+    activity_user = _create_funded_activity_user(
+        banking_api_client,
+        email=registered_user.email,
+        password=registered_user.password,
+    )
+    first_transfer = banking_api_client.create_account_transfer(
+        source_account_id=activity_user.checking.id,
+        destination_account_id=activity_user.savings.id,
+        amount="25.00",
+        access_token=activity_user.access_token,
+        idempotency_key=f"account-transfer-{uuid4()}",
+    )
+    second_transfer = banking_api_client.create_account_transfer(
+        source_account_id=activity_user.savings.id,
+        destination_account_id=activity_user.checking.id,
+        amount="10.00",
+        access_token=activity_user.access_token,
+        idempotency_key=f"account-transfer-{uuid4()}",
+    )
+    expected_operation_ids = [
+        second_transfer.id,
+        first_transfer.id,
+        activity_user.deposit_id,
+    ]
+
+    first_page = banking_api_client.list_activity(
+        access_token=activity_user.access_token,
+        limit=2,
+    )
+    cursor = first_page.next_cursor
+    assert cursor is not None
+
+    second_page = banking_api_client.list_activity(
+        access_token=activity_user.access_token,
+        limit=2,
+        cursor=cursor,
+    )
+    collected_operation_ids = [item.operation_id for item in first_page.items] + [
+        item.operation_id for item in second_page.items
+    ]
+
+    assert collected_operation_ids == expected_operation_ids
+    assert len(collected_operation_ids) == len(set(collected_operation_ids))
+    assert second_page.next_cursor is None

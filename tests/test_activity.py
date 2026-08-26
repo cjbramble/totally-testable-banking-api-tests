@@ -245,3 +245,70 @@ def test_activity_cursor_traversal_has_no_duplicate_or_missing_operations(
     assert collected_operation_ids == expected_operation_ids
     assert len(collected_operation_ids) == len(set(collected_operation_ids))
     assert second_page.next_cursor is None
+
+
+@pytest.mark.invariant
+def test_activity_cursor_remains_stable_when_newer_operation_is_inserted(
+    banking_api_client: BankingApiClient,
+    registered_user,
+) -> None:
+    activity_user = _create_funded_activity_user(
+        banking_api_client,
+        email=registered_user.email,
+        password=registered_user.password,
+    )
+    first_transfer = banking_api_client.create_account_transfer(
+        source_account_id=activity_user.checking.id,
+        destination_account_id=activity_user.savings.id,
+        amount="25.00",
+        access_token=activity_user.access_token,
+        idempotency_key=f"account-transfer-{uuid4()}",
+    )
+    second_transfer = banking_api_client.create_account_transfer(
+        source_account_id=activity_user.savings.id,
+        destination_account_id=activity_user.checking.id,
+        amount="10.00",
+        access_token=activity_user.access_token,
+        idempotency_key=f"account-transfer-{uuid4()}",
+    )
+    expected_snapshot_ids = [
+        second_transfer.id,
+        first_transfer.id,
+        activity_user.deposit_id,
+    ]
+
+    first_page = banking_api_client.list_activity(
+        access_token=activity_user.access_token,
+        limit=2,
+    )
+    cursor = first_page.next_cursor
+    assert cursor is not None
+
+    inserted_transfer = banking_api_client.create_account_transfer(
+        source_account_id=activity_user.checking.id,
+        destination_account_id=activity_user.savings.id,
+        amount="5.00",
+        access_token=activity_user.access_token,
+        idempotency_key=f"account-transfer-{uuid4()}",
+    )
+
+    second_page = banking_api_client.list_activity(
+        access_token=activity_user.access_token,
+        limit=2,
+        cursor=cursor,
+    )
+    collected_snapshot_ids = [item.operation_id for item in first_page.items] + [
+        item.operation_id for item in second_page.items
+    ]
+    fresh_page = banking_api_client.list_activity(
+        access_token=activity_user.access_token,
+        limit=2,
+    )
+
+    assert collected_snapshot_ids == expected_snapshot_ids
+    assert len(collected_snapshot_ids) == len(set(collected_snapshot_ids))
+    assert inserted_transfer.id not in collected_snapshot_ids
+    assert [item.operation_id for item in fresh_page.items] == [
+        inserted_transfer.id,
+        second_transfer.id,
+    ]

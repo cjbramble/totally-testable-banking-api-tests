@@ -8,7 +8,7 @@ fail() {
 }
 
 usage() {
-  printf 'Usage: %s {--preflight|--infrastructure-check|--application-check}\n' "$0"
+  printf 'Usage: %s {--preflight|--infrastructure-check|--application-check|--test-serial|--test-parallel|--test-concurrency|--test}\n' "$0"
 }
 
 if [[ "${1:-}" == "--help" ]]; then
@@ -23,11 +23,16 @@ fi
 
 mode="$1"
 case "$mode" in
-  --preflight | --infrastructure-check | --application-check) ;;
+  --preflight | --infrastructure-check | --application-check | --test-serial | --test-parallel | --test-concurrency | --test) ;;
   *)
     usage >&2
     exit 2
     ;;
+esac
+
+test_mode=false
+case "$mode" in
+  --test | --test-*) test_mode=true ;;
 esac
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -76,6 +81,19 @@ if [[ "$mode" == "--preflight" ]]; then
   exit 0
 fi
 
+if [[ "$test_mode" == true ]]; then
+  [[ -x "$test_repo_root/.venv/bin/ruff" ]] || fail "Ruff is unavailable; run 'uv sync'"
+  [[ -x "$test_repo_root/.venv/bin/mypy" ]] || fail "mypy is unavailable; run 'uv sync'"
+
+  printf 'Running static quality checks\n'
+  (
+    cd "$test_repo_root"
+    .venv/bin/ruff check .
+    .venv/bin/ruff format --check .
+    .venv/bin/mypy
+  )
+fi
+
 cleanup_enabled=false
 cleanup() {
   exit_status="$?"
@@ -83,6 +101,12 @@ cleanup() {
   trap - EXIT INT TERM
 
   if [[ "$cleanup_enabled" == true ]]; then
+    if [[ "$exit_status" -ne 0 && -d "$artifact_dir" ]]; then
+      printf 'Capturing Compose diagnostics in %s\n' "$artifact_dir"
+      compose ps --all >"$artifact_dir/compose-ps.txt" 2>&1 || true
+      compose logs --no-color >"$artifact_dir/compose.log" 2>&1 || true
+    fi
+
     printf 'Removing hermetic Compose resources for %s\n' "$compose_project"
     compose down --volumes --remove-orphans || cleanup_status="$?"
     docker image rm "$BANK_API_IMAGE" >/dev/null 2>&1 || true
@@ -105,7 +129,7 @@ cleanup_enabled=true
 printf 'Building isolated migration images\n'
 compose build api mock-processor
 
-if [[ "$mode" == "--application-check" ]]; then
+if [[ "$mode" == "--application-check" || "$test_mode" == true ]]; then
   printf 'Building isolated callback worker image\n'
   compose build processor-callback-worker
 fi
@@ -169,3 +193,46 @@ wait_for_url "processor" "$PROCESSOR_CONTROL_URL/health/ready"
 printf 'Hermetic application check passed\n'
 printf '  banking API: %s\n' "$SUT_BASE_URL"
 printf '  processor: %s\n' "$PROCESSOR_CONTROL_URL"
+
+if [[ "$mode" == "--application-check" ]]; then
+  exit 0
+fi
+
+export SUT_COMPOSE_FILE="$compose_file"
+mkdir -p "$artifact_dir"
+
+run_pytest() {
+  local label="$1"
+  local report_name="$2"
+  shift 2
+
+  printf 'Running %s\n' "$label"
+  (
+    cd "$test_repo_root"
+    .venv/bin/pytest \
+      "$@" \
+      --junitxml="$artifact_dir/$report_name" \
+      -o "junit_suite_name=$label-$compose_project"
+  )
+}
+
+case "$mode" in
+  --test-serial)
+    run_pytest "complete serial suite" "serial.xml"
+    ;;
+  --test-parallel)
+    run_pytest "ordinary two-worker suite" "parallel.xml" -n 2 -m "not concurrency"
+    ;;
+  --test-concurrency)
+    run_pytest "dedicated concurrency suite" "concurrency.xml" -m concurrency
+    ;;
+  --test)
+    run_pytest "smoke selection" "smoke.xml" -m smoke
+    run_pytest "complete serial suite" "serial.xml"
+    run_pytest "ordinary two-worker suite" "parallel.xml" -n 2 -m "not concurrency"
+    run_pytest "dedicated concurrency suite" "concurrency.xml" -m concurrency
+    ;;
+esac
+
+printf 'Hermetic test mode passed: %s\n' "$mode"
+printf '  JUnit directory: %s\n' "$artifact_dir"

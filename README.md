@@ -80,6 +80,28 @@ The application check starts the banking API, processor, and their background wo
 both fresh databases are migrated. It verifies the banking API and processor readiness endpoints
 from the host, then removes the generated containers, network, volumes, and images.
 
+Run the complete hermetic verification gate:
+
+```bash
+./scripts/run-hermetic.sh --test
+```
+
+Use a focused hermetic test mode when only one execution strategy needs verification:
+
+```bash
+./scripts/run-hermetic.sh --test-serial
+./scripts/run-hermetic.sh --test-parallel
+./scripts/run-hermetic.sh --test-concurrency
+```
+
+The focused modes run the complete suite serially, ordinary tests with two xdist workers, or the
+deliberate concurrency tests serially, respectively. The comprehensive `--test` mode runs all
+three strategies plus the smoke selection.
+
+Every test mode runs Ruff, formatting, and mypy; creates an isolated application stack; and writes
+JUnit XML beneath `artifacts/hermetic/`. The generated Docker resources are removed whether pytest
+passes or fails.
+
 Directories group tests by owned behavior:
 
 - `activity/` — activity projections and keyset pagination;

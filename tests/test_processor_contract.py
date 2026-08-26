@@ -77,3 +77,57 @@ def test_declined_deposit_fails_without_changing_account_balance(
         account_before.settled_balance,
         account_before.available_balance,
     )
+
+
+@pytest.mark.contract
+@pytest.mark.invariant
+def test_declined_withdrawal_fails_without_changing_account_balance(
+    banking_api_client: BankingApiClient,
+    processor_control_client: ProcessorControlClient,
+    funded_account,
+) -> None:
+    account_before = banking_api_client.get_account(
+        account_id=funded_account.account.id,
+        access_token=funded_account.access_token,
+    )
+    operation_key = f"withdrawal-decline-{uuid4()}"
+    processor_control_client.configure_scenario(
+        operation=ProcessorOperation.WITHDRAWAL,
+        operation_key=operation_key,
+        scenario=ProcessorScenario.WITHDRAWAL_DECLINE,
+    )
+
+    withdrawal = banking_api_client.create_withdrawal(
+        source_account_id=account_before.id,
+        amount="25.00",
+        access_token=funded_account.access_token,
+        idempotency_key=operation_key,
+    )
+    deadline = time.monotonic() + 10.0
+
+    while True:
+        current = banking_api_client.get_withdrawal(
+            instruction_id=withdrawal.id,
+            access_token=funded_account.access_token,
+        )
+        if current.status in {"FAILED", "SETTLED"}:
+            break
+        if time.monotonic() >= deadline:
+            pytest.fail(f"Withdrawal did not finish; final status was {current.status!r}")
+        time.sleep(0.1)
+
+    account_after = banking_api_client.get_account(
+        account_id=account_before.id,
+        access_token=funded_account.access_token,
+    )
+
+    assert current.status == "FAILED"
+    assert current.failure_code == "DECLINED"
+    assert current.completed_at is not None
+    assert (
+        account_after.settled_balance,
+        account_after.available_balance,
+    ) == (
+        account_before.settled_balance,
+        account_before.available_balance,
+    )

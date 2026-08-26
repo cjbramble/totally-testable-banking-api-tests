@@ -8,7 +8,6 @@ from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 
 
-@pytest.mark.contract
 @pytest.mark.negative
 def test_duplicate_email_registration_is_rejected(
     banking_api_client: BankingApiClient,
@@ -27,7 +26,6 @@ def test_duplicate_email_registration_is_rejected(
     assert error.error.error.code == "EMAIL_ALREADY_REGISTERED"
 
 
-@pytest.mark.contract
 @pytest.mark.negative
 def test_case_variant_email_registration_is_rejected(
     banking_api_client: BankingApiClient,
@@ -46,7 +44,6 @@ def test_case_variant_email_registration_is_rejected(
     assert error.error.error.code == "EMAIL_ALREADY_REGISTERED"
 
 
-@pytest.mark.contract
 @pytest.mark.negative
 def test_short_registration_password_is_rejected(
     banking_api_client: BankingApiClient,
@@ -64,7 +61,6 @@ def test_short_registration_password_is_rejected(
     assert error.error.error.code == "VALIDATION_ERROR"
 
 
-@pytest.mark.contract
 @pytest.mark.negative
 def test_malformed_registration_email_is_rejected(
     banking_api_client: BankingApiClient,

@@ -123,7 +123,6 @@ def funded_transfer_context(
     )
 
 
-@pytest.mark.contract
 @pytest.mark.invariant
 def test_replayed_transfer_has_one_identity_and_one_financial_effect(
     banking_api_client: BankingApiClient,
@@ -196,7 +195,6 @@ def test_replayed_transfer_has_one_identity_and_one_financial_effect(
     assert sum(item.operation_id == first.id for item in recipient_activity_after) == 1
 
 
-@pytest.mark.contract
 @pytest.mark.negative
 def test_changed_payload_with_reused_key_is_rejected_without_additional_effect(
     banking_api_client: BankingApiClient,
@@ -276,7 +274,6 @@ def test_changed_payload_with_reused_key_is_rejected_without_additional_effect(
     assert sum(item.operation_id == first.id for item in recipient_activity_after_rejection) == 1
 
 
-@pytest.mark.contract
 @pytest.mark.invariant
 def test_two_users_can_use_the_same_idempotency_key_independently(
     banking_api_client: BankingApiClient,
@@ -355,7 +352,6 @@ def test_two_users_can_use_the_same_idempotency_key_independently(
         assert sum(item.operation_id == operation_id for item in recipient_activity_after) == 1
 
 
-@pytest.mark.contract
 @pytest.mark.invariant
 def test_same_key_is_independent_across_deposit_and_transfer_operations(
     banking_api_client: BankingApiClient,
@@ -429,7 +425,6 @@ def test_same_key_is_independent_across_deposit_and_transfer_operations(
     assert sum(item.operation_id == transfer.id for item in recipient_activity_after) == 1
 
 
-@pytest.mark.contract
 @pytest.mark.invariant
 def test_retry_after_lost_response_recovers_one_transfer_effect(
     banking_api_client: BankingApiClient,

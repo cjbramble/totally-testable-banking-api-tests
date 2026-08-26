@@ -9,8 +9,9 @@ import pytest
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import ApiClient
 
+pytestmark = pytest.mark.unit
 
-@pytest.mark.contract
+
 def test_register_user_sends_registration_payload_and_parses_user_response() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/users"
@@ -51,7 +52,6 @@ def test_register_user_sends_registration_payload_and_parses_user_response() -> 
     assert user.display_name == "New User"
 
 
-@pytest.mark.contract
 def test_login_parses_token_response() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/auth/tokens"
@@ -88,7 +88,6 @@ def test_login_parses_token_response() -> None:
     assert token.token_type == "bearer"
 
 
-@pytest.mark.contract
 def test_list_accounts_sends_bearer_token_and_parses_account_responses() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/accounts"
@@ -132,7 +131,6 @@ def test_list_accounts_sends_bearer_token_and_parses_account_responses() -> None
     assert accounts[0].settled_balance == "1000.00"
 
 
-@pytest.mark.contract
 def test_create_transfer_sends_request_and_parses_transfer_response() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/transfers"
@@ -186,7 +184,6 @@ def test_create_transfer_sends_request_and_parses_transfer_response() -> None:
     assert transfer.transfer_kind == "P2P"
 
 
-@pytest.mark.contract
 def test_list_activity_sends_pagination_and_parses_page() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/activity"
@@ -239,7 +236,6 @@ def test_list_activity_sends_pagination_and_parses_page() -> None:
     assert page.next_cursor == "next-opaque-cursor"
 
 
-@pytest.mark.contract
 def test_withdrawal_methods_send_published_requests_and_parse_responses() -> None:
     instruction_id = uuid.UUID("00000000-0000-4000-8000-000000000010")
     source_account_id = uuid.UUID("00000000-0000-4000-8000-000000000011")

@@ -8,7 +8,6 @@ from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 
 
-@pytest.mark.contract
 def test_owner_can_retrieve_their_account(
     banking_api_client: BankingApiClient,
     registered_user,
@@ -28,7 +27,6 @@ def test_owner_can_retrieve_their_account(
     assert retrieved.account_type == account.account_type
 
 
-@pytest.mark.contract
 @pytest.mark.negative
 def test_outsider_cannot_retrieve_another_users_account(
     banking_api_client: BankingApiClient,
@@ -67,7 +65,6 @@ def test_outsider_cannot_retrieve_another_users_account(
     assert error.error.error.code == "ACCOUNT_NOT_FOUND"
 
 
-@pytest.mark.contract
 @pytest.mark.negative
 def test_invalid_bearer_token_is_rejected(
     banking_api_client: BankingApiClient,

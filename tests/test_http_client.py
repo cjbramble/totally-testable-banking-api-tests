@@ -10,6 +10,8 @@ from totally_testable_banking_api_tests.http_client import (
     UnexpectedStatusError,
 )
 
+pytestmark = pytest.mark.unit
+
 
 def test_request_returns_response_when_status_matches() -> None:
     def handler(request: httpx.Request) -> httpx.Response:

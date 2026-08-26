@@ -14,7 +14,6 @@ from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 
 
-@pytest.mark.contract
 def test_withdrawal_request_for_owned_account_is_accepted(
     banking_api_client: BankingApiClient,
     funded_account,
@@ -35,7 +34,6 @@ def test_withdrawal_request_for_owned_account_is_accepted(
     assert withdrawal.completed_at is None
 
 
-@pytest.mark.contract
 def test_created_withdrawal_can_be_retrieved_by_its_owner(
     banking_api_client: BankingApiClient,
     funded_account,
@@ -59,7 +57,6 @@ def test_created_withdrawal_can_be_retrieved_by_its_owner(
     assert retrieved.created_at == withdrawal.created_at
 
 
-@pytest.mark.contract
 @pytest.mark.negative
 def test_outsider_cannot_retrieve_another_users_withdrawal(
     banking_api_client: BankingApiClient,
@@ -97,7 +94,6 @@ def test_outsider_cannot_retrieve_another_users_withdrawal(
     assert error.error.error.code == "WITHDRAWAL_NOT_FOUND"
 
 
-@pytest.mark.contract
 @pytest.mark.invariant
 def test_withdrawal_settlement_updates_balances_and_activity(
     banking_api_client: BankingApiClient,

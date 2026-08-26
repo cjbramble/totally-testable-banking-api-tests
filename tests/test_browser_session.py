@@ -6,7 +6,6 @@ from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 
 
-@pytest.mark.contract
 def test_browser_session_persists_cookie_for_session_read(
     banking_api_client: BankingApiClient,
     registered_user,
@@ -23,7 +22,6 @@ def test_browser_session_persists_cookie_for_session_read(
     assert current.email == registered_user.user.email
 
 
-@pytest.mark.contract
 @pytest.mark.negative
 def test_logout_invalidates_browser_session(
     banking_api_client: BankingApiClient,
@@ -44,7 +42,6 @@ def test_logout_invalidates_browser_session(
     assert error.error.error.code == "AUTHENTICATION_REQUIRED"
 
 
-@pytest.mark.contract
 @pytest.mark.negative
 def test_invalid_csrf_token_is_rejected(
     banking_api_client: BankingApiClient,

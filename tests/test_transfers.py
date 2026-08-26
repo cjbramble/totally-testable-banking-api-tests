@@ -10,7 +10,6 @@ from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 
 
-@pytest.mark.contract
 @pytest.mark.invariant
 def test_p2p_transfer_moves_exact_amount_between_accounts(
     banking_api_client: BankingApiClient,
@@ -99,7 +98,6 @@ def test_p2p_transfer_moves_exact_amount_between_accounts(
     )
 
 
-@pytest.mark.contract
 @pytest.mark.negative
 def test_outsider_cannot_retrieve_another_users_transfer(
     banking_api_client: BankingApiClient,

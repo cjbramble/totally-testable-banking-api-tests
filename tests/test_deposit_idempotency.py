@@ -34,7 +34,6 @@ def _wait_for_deposit_settlement(
         time.sleep(0.1)
 
 
-@pytest.mark.contract
 @pytest.mark.invariant
 def test_replayed_deposit_has_one_identity_and_one_financial_effect(
     banking_api_client: BankingApiClient,
@@ -93,7 +92,6 @@ def test_replayed_deposit_has_one_identity_and_one_financial_effect(
     assert sum(item.operation_id == first.id for item in activity_after) == 1
 
 
-@pytest.mark.contract
 @pytest.mark.negative
 def test_changed_deposit_payload_with_reused_key_is_rejected_without_additional_effect(
     banking_api_client: BankingApiClient,
@@ -157,7 +155,6 @@ def test_changed_deposit_payload_with_reused_key_is_rejected_without_additional_
     assert sum(item.operation_id == first.id for item in activity_after_rejection) == 1
 
 
-@pytest.mark.contract
 @pytest.mark.invariant
 def test_two_users_can_use_the_same_deposit_key_independently(
     banking_api_client: BankingApiClient,

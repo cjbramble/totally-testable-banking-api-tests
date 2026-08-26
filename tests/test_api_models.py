@@ -12,8 +12,9 @@ from totally_testable_banking_api_tests.api_models import (
     WithdrawalResponse,
 )
 
+pytestmark = pytest.mark.unit
 
-@pytest.mark.contract
+
 def test_token_response_defaults_token_type_to_bearer() -> None:
     token = TokenResponse.model_validate({"access_token": "token-value", "expires_in": 1800})
 
@@ -22,7 +23,6 @@ def test_token_response_defaults_token_type_to_bearer() -> None:
     assert token.token_type == "bearer"
 
 
-@pytest.mark.contract
 def test_account_response_parses_uuid_and_account_type() -> None:
     account = AccountResponse.model_validate(
         {
@@ -39,7 +39,6 @@ def test_account_response_parses_uuid_and_account_type() -> None:
     assert account.settled_balance == "1000.00"
 
 
-@pytest.mark.contract
 def test_account_response_rejects_unknown_fields() -> None:
     with pytest.raises(ValidationError, match="extra_forbidden"):
         AccountResponse.model_validate(
@@ -54,7 +53,6 @@ def test_account_response_rejects_unknown_fields() -> None:
         )
 
 
-@pytest.mark.contract
 def test_withdrawal_response_parses_published_fields() -> None:
     withdrawal = WithdrawalResponse.model_validate(
         {
@@ -76,7 +74,6 @@ def test_withdrawal_response_parses_published_fields() -> None:
     assert withdrawal.completed_at is None
 
 
-@pytest.mark.contract
 def test_withdrawal_response_rejects_unknown_fields() -> None:
     with pytest.raises(ValidationError, match="extra_forbidden"):
         WithdrawalResponse.model_validate(

@@ -13,7 +13,6 @@ from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 
 
-@pytest.mark.contract
 def test_deposit_request_for_owned_account_is_accepted(
     banking_api_client: BankingApiClient,
     registered_user,
@@ -40,7 +39,6 @@ def test_deposit_request_for_owned_account_is_accepted(
     assert deposit.completed_at is None
 
 
-@pytest.mark.contract
 def test_created_deposit_can_be_retrieved_by_its_owner(
     banking_api_client: BankingApiClient,
     registered_user,
@@ -67,7 +65,6 @@ def test_created_deposit_can_be_retrieved_by_its_owner(
     assert retrieved.status == "CREATED"
 
 
-@pytest.mark.contract
 @pytest.mark.negative
 def test_outsider_cannot_retrieve_another_users_deposit(
     banking_api_client: BankingApiClient,
@@ -112,7 +109,6 @@ def test_outsider_cannot_retrieve_another_users_deposit(
     assert error.error.error.code == "DEPOSIT_NOT_FOUND"
 
 
-@pytest.mark.contract
 @pytest.mark.invariant
 def test_deposit_settlement_updates_balances_and_activity(
     banking_api_client: BankingApiClient,

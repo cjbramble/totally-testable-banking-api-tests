@@ -5,8 +5,9 @@ from pydantic import ValidationError
 
 from totally_testable_banking_api_tests.error_models import ErrorResponse
 
+pytestmark = pytest.mark.unit
 
-@pytest.mark.contract
+
 def test_error_response_accepts_published_envelope() -> None:
     response = ErrorResponse.model_validate(
         {
@@ -21,7 +22,6 @@ def test_error_response_accepts_published_envelope() -> None:
     assert response.error.message == "Available balance is insufficient."
 
 
-@pytest.mark.contract
 def test_error_response_rejects_undocumented_fields() -> None:
     with pytest.raises(ValidationError, match="extra_forbidden"):
         ErrorResponse.model_validate(

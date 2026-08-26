@@ -41,7 +41,6 @@ def _fund_account_and_wait_for_settlement(
         time.sleep(0.1)
 
 
-@pytest.mark.contract
 @pytest.mark.negative
 @pytest.mark.parametrize(
     ("amount", "expected_error_code"),
@@ -133,7 +132,6 @@ def test_invalid_amount_transfer_is_rejected_without_financial_effect(
     assert recipient_activity_after == recipient_activity_before
 
 
-@pytest.mark.contract
 @pytest.mark.negative
 @pytest.mark.parametrize(
     ("idempotency_key", "expected_error_code"),
@@ -221,7 +219,6 @@ def test_invalid_idempotency_key_is_rejected_without_financial_effect(
     assert recipient_activity_after == recipient_activity_before
 
 
-@pytest.mark.contract
 @pytest.mark.negative
 def test_foreign_source_account_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
@@ -319,7 +316,6 @@ def test_foreign_source_account_is_rejected_without_financial_effect(
     assert actor_activity_after == actor_activity_before
 
 
-@pytest.mark.contract
 @pytest.mark.negative
 def test_unknown_destination_account_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
@@ -378,7 +374,6 @@ def test_unknown_destination_account_is_rejected_without_financial_effect(
     assert activity_after == activity_before
 
 
-@pytest.mark.contract
 @pytest.mark.negative
 def test_self_transfer_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
@@ -435,7 +430,6 @@ def test_self_transfer_is_rejected_without_financial_effect(
     assert activity_after == activity_before
 
 
-@pytest.mark.contract
 @pytest.mark.negative
 def test_transfer_exceeding_available_balance_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
@@ -533,7 +527,6 @@ def test_transfer_exceeding_available_balance_is_rejected_without_financial_effe
     assert recipient_activity_after == recipient_activity_before
 
 
-@pytest.mark.contract
 @pytest.mark.negative
 def test_transfer_missing_destination_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,

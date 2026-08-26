@@ -26,10 +26,11 @@ addopts = "--strict-markers --strict-config -q"
 testpaths = ["tests"]
 pythonpath = ["src"]
 markers = [
+    "unit: isolated tests of the API automation repository's own code",
     "smoke: fast checks of essential service behavior",
     "invariant: checks of durable business invariants",
     "negative: checks of rejected or invalid requests",
-    "contract: checks of published API contracts",
+    "contract: checks of the banking-service and simulated-processor contract",
     "concurrency: checks involving controlled concurrent actions",
 ]
 

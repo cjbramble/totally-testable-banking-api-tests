@@ -9,7 +9,6 @@ from totally_testable_banking_api_tests.api_models import ActivityDirection, Act
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 
 
-@pytest.mark.contract
 @pytest.mark.invariant
 def test_transfer_appears_as_sent_and_received_activity(
     banking_api_client: BankingApiClient,

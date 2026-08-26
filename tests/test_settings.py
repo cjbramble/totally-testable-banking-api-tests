@@ -5,6 +5,8 @@ from pydantic import ValidationError
 
 from totally_testable_banking_api_tests.settings import load_settings
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.mark.smoke
 def test_default_local_settings_are_accepted(monkeypatch):

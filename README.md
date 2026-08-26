@@ -69,6 +69,17 @@ Build fresh migration images, apply both database schemas, and verify isolated t
 ./scripts/run-hermetic.sh --infrastructure-check
 ```
 
+Start the isolated API application stack and verify its readiness through dynamically assigned
+host ports:
+
+```bash
+./scripts/run-hermetic.sh --application-check
+```
+
+The application check starts the banking API, processor, and their background workers only after
+both fresh databases are migrated. It verifies the banking API and processor readiness endpoints
+from the host, then removes the generated containers, network, volumes, and images.
+
 Directories group tests by owned behavior:
 
 - `activity/` — activity projections and keyset pagination;

@@ -13,6 +13,7 @@ from totally_testable_banking_api_tests.api_models import (
     ProductAccountType,
 )
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
+from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 
 
 @dataclass(frozen=True)
@@ -312,3 +313,25 @@ def test_activity_cursor_remains_stable_when_newer_operation_is_inserted(
         inserted_transfer.id,
         second_transfer.id,
     ]
+
+
+@pytest.mark.negative
+def test_malformed_activity_cursor_is_rejected(
+    banking_api_client: BankingApiClient,
+    registered_user,
+) -> None:
+    token = banking_api_client.login(
+        email=registered_user.email,
+        password=registered_user.password,
+    )
+
+    with pytest.raises(UnexpectedStatusError) as exc_info:
+        banking_api_client.list_activity(
+            access_token=token.access_token,
+            cursor="not-a-valid-cursor",
+        )
+
+    error = exc_info.value
+    assert error.status_code == 422
+    assert error.error is not None
+    assert error.error.error.code == "INVALID_CURSOR"

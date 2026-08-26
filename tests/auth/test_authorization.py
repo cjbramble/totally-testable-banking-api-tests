@@ -1,7 +1,5 @@
 """Account ownership tests covering valid access and outsider concealment."""
 
-from uuid import uuid4
-
 import pytest
 
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
@@ -31,6 +29,7 @@ def test_owner_can_retrieve_their_account(
 def test_outsider_cannot_retrieve_another_users_account(
     banking_api_client: BankingApiClient,
     registered_user,
+    registered_user_factory,
 ) -> None:
     owner_token = banking_api_client.login(
         email=registered_user.email,
@@ -40,17 +39,10 @@ def test_outsider_cannot_retrieve_another_users_account(
         access_token=owner_token.access_token,
     )[0]
 
-    outsider_id = uuid4().hex
-    outsider_email = f"api-test-user-{outsider_id}@example.com"
-    outsider_password = f"Test-user-{outsider_id}"
-    banking_api_client.register_user(
-        email=outsider_email,
-        display_name="Outsider Test User",
-        password=outsider_password,
-    )
+    outsider = registered_user_factory(display_name="Outsider Test User")
     outsider_token = banking_api_client.login(
-        email=outsider_email,
-        password=outsider_password,
+        email=outsider.email,
+        password=outsider.password,
     )
 
     with pytest.raises(UnexpectedStatusError) as exc_info:

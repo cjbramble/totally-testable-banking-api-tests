@@ -36,6 +36,24 @@ class FundedAccount:
     account: AccountResponse
 
 
+class RegisteredUserFactory:
+    """Create isolated registered users through the normal product API."""
+
+    def __init__(self, banking_api_client: BankingApiClient) -> None:
+        self._banking_api_client = banking_api_client
+
+    def __call__(self, *, display_name: str = "Test User") -> RegisteredUser:
+        unique_id = uuid4().hex
+        email = f"api-test-user-{unique_id}@example.com"
+        password = f"Test-user-{unique_id}"
+        user = self._banking_api_client.register_user(
+            email=email,
+            display_name=display_name,
+            password=password,
+        )
+        return RegisteredUser(user=user, email=email, password=password)
+
+
 @pytest.fixture
 def banking_api_client() -> Iterator[BankingApiClient]:
     """Provide one cookie-preserving API client and close it after each test."""
@@ -80,18 +98,21 @@ def scheduled_worker_control() -> ScheduledWorkerControl:
 
 
 @pytest.fixture
-def registered_user(banking_api_client: BankingApiClient) -> RegisteredUser:
-    """Register a uniquely named user through the normal product API."""
+def registered_user_factory(
+    banking_api_client: BankingApiClient,
+) -> RegisteredUserFactory:
+    """Provide a function-scoped factory for isolated registered users."""
 
-    unique_id = uuid4().hex
-    email = f"api-test-user-{unique_id}@example.com"
-    password = f"Test-user-{unique_id}"
-    user = banking_api_client.register_user(
-        email=email,
-        display_name="Test User",
-        password=password,
-    )
-    return RegisteredUser(user=user, email=email, password=password)
+    return RegisteredUserFactory(banking_api_client)
+
+
+@pytest.fixture
+def registered_user(
+    registered_user_factory: RegisteredUserFactory,
+) -> RegisteredUser:
+    """Register one uniquely named user through the normal product API."""
+
+    return registered_user_factory()
 
 
 @pytest.fixture

@@ -204,3 +204,70 @@ def test_future_account_transfer_has_no_early_financial_effect(
         savings_before.settled_balance,
         savings_before.available_balance,
     )
+
+
+@pytest.mark.invariant
+def test_scheduled_account_transfer_can_be_canceled_before_execution(
+    banking_api_client: BankingApiClient,
+    funded_account,
+) -> None:
+    savings_before = next(
+        account
+        for account in banking_api_client.list_accounts(
+            access_token=funded_account.access_token,
+        )
+        if account.account_type is ProductAccountType.SAVINGS
+    )
+    checking_before = banking_api_client.get_account(
+        account_id=funded_account.account.id,
+        access_token=funded_account.access_token,
+    )
+    scheduled_for = datetime.now(UTC).date() + timedelta(days=2)
+    scheduled = banking_api_client.create_account_transfer(
+        source_account_id=checking_before.id,
+        destination_account_id=savings_before.id,
+        amount="25.00",
+        access_token=funded_account.access_token,
+        idempotency_key=f"account-transfer-{uuid4()}",
+        scheduled_for=scheduled_for,
+    )
+
+    canceled = banking_api_client.cancel_transfer(
+        transfer_id=scheduled.id,
+        access_token=funded_account.access_token,
+    )
+    retrieved = banking_api_client.get_transfer(
+        transfer_id=scheduled.id,
+        access_token=funded_account.access_token,
+    )
+    checking_after = banking_api_client.get_account(
+        account_id=checking_before.id,
+        access_token=funded_account.access_token,
+    )
+    savings_after = banking_api_client.get_account(
+        account_id=savings_before.id,
+        access_token=funded_account.access_token,
+    )
+
+    assert scheduled.status == "SCHEDULED"
+    assert canceled.id == scheduled.id
+    assert canceled.status == "CANCELED"
+    assert canceled.scheduled_for == scheduled_for
+    assert canceled.completed_at is not None
+    assert retrieved.id == canceled.id
+    assert retrieved.status == "CANCELED"
+    assert retrieved.completed_at == canceled.completed_at
+    assert (
+        checking_after.settled_balance,
+        checking_after.available_balance,
+    ) == (
+        checking_before.settled_balance,
+        checking_before.available_balance,
+    )
+    assert (
+        savings_after.settled_balance,
+        savings_after.available_balance,
+    ) == (
+        savings_before.settled_balance,
+        savings_before.available_balance,
+    )

@@ -2,15 +2,14 @@
 
 from dataclasses import dataclass
 from decimal import Decimal
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import httpx
 import pytest
 
-from totally_testable_banking_api_tests.api_models import AccountResponse, DepositResponse
+from totally_testable_banking_api_tests.api_models import AccountResponse
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import ApiClient, UnexpectedStatusError
-from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
 from totally_testable_banking_api_tests.settings import load_settings
 
 
@@ -45,36 +44,12 @@ class FundedTransferContext:
     destination_account: AccountResponse
 
 
-def _fund_account_and_wait_for_settlement(
-    banking_api_client: BankingApiClient,
-    *,
-    account_id: UUID,
-    access_token: str,
-    amount: str = "100.00",
-    idempotency_key: str | None = None,
-) -> DepositResponse:
-    """Fund one account through the API and return its settled instruction."""
-
-    funding = banking_api_client.create_deposit(
-        destination_account_id=account_id,
-        amount=amount,
-        access_token=access_token,
-        idempotency_key=idempotency_key or f"deposit-{uuid4()}",
-    )
-    return wait_for_settlement(
-        lambda: banking_api_client.get_deposit(
-            instruction_id=funding.id,
-            access_token=access_token,
-        ),
-        operation_name="funding deposit",
-    )
-
-
 @pytest.fixture
 def funded_transfer_context(
     banking_api_client: BankingApiClient,
     registered_user,
     registered_user_factory,
+    settled_deposit_factory,
 ) -> FundedTransferContext:
     """Create fresh participants with a settled sender balance for each test."""
 
@@ -86,9 +61,8 @@ def funded_transfer_context(
         access_token=sender_token.access_token,
     )[0]
 
-    _fund_account_and_wait_for_settlement(
-        banking_api_client,
-        account_id=source_account.id,
+    settled_deposit_factory(
+        destination_account_id=source_account.id,
         access_token=sender_token.access_token,
     )
 
@@ -264,11 +238,11 @@ def test_changed_payload_with_reused_key_is_rejected_without_additional_effect(
 def test_two_users_can_use_the_same_idempotency_key_independently(
     banking_api_client: BankingApiClient,
     funded_transfer_context: FundedTransferContext,
+    settled_deposit_factory,
 ) -> None:
     context = funded_transfer_context
-    _fund_account_and_wait_for_settlement(
-        banking_api_client,
-        account_id=context.destination_account.id,
+    settled_deposit_factory(
+        destination_account_id=context.destination_account.id,
         access_token=context.recipient_access_token,
     )
 
@@ -342,6 +316,7 @@ def test_two_users_can_use_the_same_idempotency_key_independently(
 def test_same_key_is_independent_across_deposit_and_transfer_operations(
     banking_api_client: BankingApiClient,
     funded_transfer_context: FundedTransferContext,
+    settled_deposit_factory,
 ) -> None:
     context = funded_transfer_context
     source_before = banking_api_client.get_account(
@@ -360,9 +335,8 @@ def test_same_key_is_independent_across_deposit_and_transfer_operations(
     ).items
 
     shared_key = f"cross-operation-{uuid4()}"
-    deposit = _fund_account_and_wait_for_settlement(
-        banking_api_client,
-        account_id=context.source_account.id,
+    deposit = settled_deposit_factory(
+        destination_account_id=context.source_account.id,
         access_token=context.sender_access_token,
         amount="100.00",
         idempotency_key=shared_key,

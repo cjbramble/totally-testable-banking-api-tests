@@ -7,7 +7,6 @@ import pytest
 
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
-from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
 
 
 @pytest.mark.invariant
@@ -15,6 +14,7 @@ def test_p2p_transfer_moves_exact_amount_between_accounts(
     banking_api_client: BankingApiClient,
     registered_user,
     registered_user_factory,
+    settled_deposit_factory,
 ) -> None:
     sender_token = banking_api_client.login(
         email=registered_user.email,
@@ -30,18 +30,9 @@ def test_p2p_transfer_moves_exact_amount_between_accounts(
         password=recipient.password,
     )
 
-    funding = banking_api_client.create_deposit(
+    settled_deposit_factory(
         destination_account_id=sender_account.id,
-        amount="100.00",
         access_token=sender_token.access_token,
-        idempotency_key=f"deposit-{uuid4()}",
-    )
-    wait_for_settlement(
-        lambda: banking_api_client.get_deposit(
-            instruction_id=funding.id,
-            access_token=sender_token.access_token,
-        ),
-        operation_name="sender funding deposit",
     )
 
     sender_before = banking_api_client.list_accounts(
@@ -89,6 +80,7 @@ def test_outsider_cannot_retrieve_another_users_transfer(
     banking_api_client: BankingApiClient,
     registered_user,
     registered_user_factory,
+    settled_deposit_factory,
 ) -> None:
     owner_token = banking_api_client.login(
         email=registered_user.email,
@@ -107,18 +99,9 @@ def test_outsider_cannot_retrieve_another_users_transfer(
         access_token=recipient_token.access_token,
     )[0]
 
-    funding = banking_api_client.create_deposit(
+    settled_deposit_factory(
         destination_account_id=owner_account.id,
-        amount="100.00",
         access_token=owner_token.access_token,
-        idempotency_key=f"deposit-{uuid4()}",
-    )
-    wait_for_settlement(
-        lambda: banking_api_client.get_deposit(
-            instruction_id=funding.id,
-            access_token=owner_token.access_token,
-        ),
-        operation_name="owner funding deposit",
     )
 
     transfer = banking_api_client.create_transfer(

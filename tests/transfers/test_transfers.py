@@ -1,6 +1,5 @@
 """Live P2P atomic-balance and transfer-ownership tests."""
 
-import time
 from decimal import Decimal
 from uuid import uuid4
 
@@ -8,6 +7,7 @@ import pytest
 
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
+from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
 
 
 @pytest.mark.invariant
@@ -36,21 +36,13 @@ def test_p2p_transfer_moves_exact_amount_between_accounts(
         access_token=sender_token.access_token,
         idempotency_key=f"deposit-{uuid4()}",
     )
-    deadline = time.monotonic() + 10.0
-    while True:
-        current_funding = banking_api_client.get_deposit(
+    wait_for_settlement(
+        lambda: banking_api_client.get_deposit(
             instruction_id=funding.id,
             access_token=sender_token.access_token,
-        )
-        if current_funding.status == "SETTLED":
-            break
-        if current_funding.status == "FAILED":
-            pytest.fail(f"Funding deposit failed with {current_funding.failure_code!r}")
-        if time.monotonic() >= deadline:
-            pytest.fail(
-                f"Funding deposit did not settle; final status was {current_funding.status!r}"
-            )
-        time.sleep(0.1)
+        ),
+        operation_name="sender funding deposit",
+    )
 
     sender_before = banking_api_client.list_accounts(
         access_token=sender_token.access_token,
@@ -121,21 +113,13 @@ def test_outsider_cannot_retrieve_another_users_transfer(
         access_token=owner_token.access_token,
         idempotency_key=f"deposit-{uuid4()}",
     )
-    deadline = time.monotonic() + 10.0
-    while True:
-        current_funding = banking_api_client.get_deposit(
+    wait_for_settlement(
+        lambda: banking_api_client.get_deposit(
             instruction_id=funding.id,
             access_token=owner_token.access_token,
-        )
-        if current_funding.status == "SETTLED":
-            break
-        if current_funding.status == "FAILED":
-            pytest.fail(f"Funding deposit failed with {current_funding.failure_code!r}")
-        if time.monotonic() >= deadline:
-            pytest.fail(
-                f"Funding deposit did not settle; final status was {current_funding.status!r}"
-            )
-        time.sleep(0.1)
+        ),
+        operation_name="owner funding deposit",
+    )
 
     transfer = banking_api_client.create_transfer(
         source_account_id=owner_account.id,

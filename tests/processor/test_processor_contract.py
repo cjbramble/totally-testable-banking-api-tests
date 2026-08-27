@@ -13,6 +13,7 @@ from totally_testable_banking_api_tests.api_models import (
 )
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
+from totally_testable_banking_api_tests.operation_polling import wait_for_terminal_status
 from totally_testable_banking_api_tests.processor_control import (
     ProcessorCommandStatus,
     ProcessorControlClient,
@@ -57,18 +58,14 @@ def test_declined_deposit_appears_as_failed_activity_without_balance_change(
         access_token=token.access_token,
         idempotency_key=operation_key,
     )
-    deadline = time.monotonic() + 10.0
-
-    while True:
-        current = banking_api_client.get_deposit(
+    current = wait_for_terminal_status(
+        lambda: banking_api_client.get_deposit(
             instruction_id=deposit.id,
             access_token=token.access_token,
-        )
-        if current.status in {"FAILED", "SETTLED"}:
-            break
-        if time.monotonic() >= deadline:
-            pytest.fail(f"Deposit did not finish; final status was {current.status!r}")
-        time.sleep(0.1)
+        ),
+        operation_name="processor-backed deposit",
+        terminal_statuses={"FAILED", "SETTLED"},
+    )
 
     account_after = banking_api_client.get_account(
         account_id=account.id,
@@ -128,18 +125,14 @@ def test_declined_withdrawal_appears_as_failed_activity_without_balance_change(
         access_token=funded_account.access_token,
         idempotency_key=operation_key,
     )
-    deadline = time.monotonic() + 10.0
-
-    while True:
-        current = banking_api_client.get_withdrawal(
+    current = wait_for_terminal_status(
+        lambda: banking_api_client.get_withdrawal(
             instruction_id=withdrawal.id,
             access_token=funded_account.access_token,
-        )
-        if current.status in {"FAILED", "SETTLED"}:
-            break
-        if time.monotonic() >= deadline:
-            pytest.fail(f"Withdrawal did not finish; final status was {current.status!r}")
-        time.sleep(0.1)
+        ),
+        operation_name="processor-backed withdrawal",
+        terminal_statuses={"FAILED", "SETTLED"},
+    )
 
     account_after = banking_api_client.get_account(
         account_id=account_before.id,
@@ -225,17 +218,14 @@ def test_pending_withdrawal_reserves_available_balance_until_settlement(
                 pytest.fail("Processor did not accept the pending withdrawal before the deadline")
             time.sleep(0.1)
 
-    terminal_deadline = time.monotonic() + 10.0
-    while True:
-        current = banking_api_client.get_withdrawal(
+    current = wait_for_terminal_status(
+        lambda: banking_api_client.get_withdrawal(
             instruction_id=withdrawal.id,
             access_token=funded_account.access_token,
-        )
-        if current.status in {"FAILED", "SETTLED"}:
-            break
-        if time.monotonic() >= terminal_deadline:
-            pytest.fail(f"Withdrawal did not finish; final status was {current.status!r}")
-        time.sleep(0.1)
+        ),
+        operation_name="pending processor-backed withdrawal",
+        terminal_statuses={"FAILED", "SETTLED"},
+    )
 
     account_after = banking_api_client.get_account(
         account_id=account_before.id,

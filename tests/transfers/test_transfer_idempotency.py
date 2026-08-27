@@ -7,7 +7,11 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from totally_testable_banking_api_tests.api_models import AccountResponse
+from totally_testable_banking_api_tests.account_selection import get_account_by_type
+from totally_testable_banking_api_tests.api_models import (
+    AccountResponse,
+    ProductAccountType,
+)
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import ApiClient, UnexpectedStatusError
 from totally_testable_banking_api_tests.settings import load_settings
@@ -57,9 +61,12 @@ def funded_transfer_context(
         email=registered_user.email,
         password=registered_user.password,
     )
-    source_account = banking_api_client.list_accounts(
-        access_token=sender_token.access_token,
-    )[0]
+    source_account = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=sender_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
 
     create_settled_deposit(
         destination_account_id=source_account.id,
@@ -71,9 +78,12 @@ def funded_transfer_context(
         email=recipient.email,
         password=recipient.password,
     )
-    destination_account = banking_api_client.list_accounts(
-        access_token=recipient_token.access_token,
-    )[0]
+    destination_account = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=recipient_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
 
     return FundedTransferContext(
         sender_access_token=sender_token.access_token,

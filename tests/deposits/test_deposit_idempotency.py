@@ -1,37 +1,13 @@
 """Deposit idempotency tests proving one terminal credit and activity record."""
 
-import time
 from decimal import Decimal
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 
-from totally_testable_banking_api_tests.api_models import DepositResponse
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
-
-
-def _wait_for_deposit_settlement(
-    banking_api_client: BankingApiClient,
-    *,
-    instruction_id: UUID,
-    access_token: str,
-) -> DepositResponse:
-    """Poll one owned deposit to settlement with a finite deadline."""
-
-    deadline = time.monotonic() + 10.0
-    while True:
-        current = banking_api_client.get_deposit(
-            instruction_id=instruction_id,
-            access_token=access_token,
-        )
-        if current.status == "SETTLED":
-            return current
-        if current.status == "FAILED":
-            pytest.fail(f"Deposit failed with {current.failure_code!r}")
-        if time.monotonic() >= deadline:
-            pytest.fail(f"Deposit did not settle; final status was {current.status!r}")
-        time.sleep(0.1)
+from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
 
 
 @pytest.mark.invariant
@@ -67,10 +43,12 @@ def test_replayed_deposit_has_one_identity_and_one_financial_effect(
         idempotency_key=idempotency_key,
     )
 
-    _wait_for_deposit_settlement(
-        banking_api_client,
-        instruction_id=first.id,
-        access_token=token.access_token,
+    wait_for_settlement(
+        lambda: banking_api_client.get_deposit(
+            instruction_id=first.id,
+            access_token=token.access_token,
+        ),
+        operation_name="deposit",
     )
 
     account_after = banking_api_client.get_account(
@@ -109,10 +87,12 @@ def test_changed_deposit_payload_with_reused_key_is_rejected_without_additional_
         access_token=token.access_token,
         idempotency_key=idempotency_key,
     )
-    _wait_for_deposit_settlement(
-        banking_api_client,
-        instruction_id=first.id,
-        access_token=token.access_token,
+    wait_for_settlement(
+        lambda: banking_api_client.get_deposit(
+            instruction_id=first.id,
+            access_token=token.access_token,
+        ),
+        operation_name="deposit",
     )
 
     account_after_first = banking_api_client.get_account(
@@ -207,15 +187,19 @@ def test_two_users_can_use_the_same_deposit_key_independently(
         idempotency_key=shared_key,
     )
 
-    _wait_for_deposit_settlement(
-        banking_api_client,
-        instruction_id=first_deposit.id,
-        access_token=first_token.access_token,
+    wait_for_settlement(
+        lambda: banking_api_client.get_deposit(
+            instruction_id=first_deposit.id,
+            access_token=first_token.access_token,
+        ),
+        operation_name="first user's deposit",
     )
-    _wait_for_deposit_settlement(
-        banking_api_client,
-        instruction_id=second_deposit.id,
-        access_token=second_token.access_token,
+    wait_for_settlement(
+        lambda: banking_api_client.get_deposit(
+            instruction_id=second_deposit.id,
+            access_token=second_token.access_token,
+        ),
+        operation_name="second user's deposit",
     )
 
     first_after = banking_api_client.get_account(

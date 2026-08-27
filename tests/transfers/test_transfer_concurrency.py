@@ -1,6 +1,5 @@
 """Controlled transfer races with durable financial postconditions."""
 
-import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from decimal import Decimal
@@ -17,6 +16,7 @@ from totally_testable_banking_api_tests.api_models import (
 )
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
+from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
 
 
 @dataclass(frozen=True)
@@ -56,20 +56,13 @@ def _fund_checking_account(
         access_token=account.access_token,
         idempotency_key=f"deposit-{uuid4()}",
     )
-    deadline = time.monotonic() + 10.0
-
-    while True:
-        current = banking_api_client.get_deposit(
+    wait_for_settlement(
+        lambda: banking_api_client.get_deposit(
             instruction_id=deposit.id,
             access_token=account.access_token,
-        )
-        if current.status == "SETTLED":
-            break
-        if current.status == "FAILED":
-            pytest.fail(f"Funding deposit failed with {current.failure_code!r}")
-        if time.monotonic() >= deadline:
-            pytest.fail(f"Funding deposit did not settle; final status was {current.status!r}")
-        time.sleep(0.1)
+        ),
+        operation_name="concurrency-test funding deposit",
+    )
 
     return _AuthenticatedCheckingAccount(
         access_token=account.access_token,

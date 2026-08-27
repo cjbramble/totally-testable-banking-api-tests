@@ -1,6 +1,5 @@
 """Function-scoped fixtures for isolated users and API client lifecycle."""
 
-import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from uuid import uuid4
@@ -14,6 +13,7 @@ from totally_testable_banking_api_tests.api_models import (
 )
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import ApiClient
+from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
 from totally_testable_banking_api_tests.processor_control import ProcessorControlClient
 from totally_testable_banking_api_tests.scheduled_worker_control import ScheduledWorkerControl
 from totally_testable_banking_api_tests.settings import load_settings
@@ -139,20 +139,13 @@ def funded_account(
         access_token=token.access_token,
         idempotency_key=f"deposit-{uuid4()}",
     )
-    deadline = time.monotonic() + 10.0
-
-    while True:
-        current = banking_api_client.get_deposit(
+    wait_for_settlement(
+        lambda: banking_api_client.get_deposit(
             instruction_id=deposit.id,
             access_token=token.access_token,
-        )
-        if current.status == "SETTLED":
-            break
-        if current.status == "FAILED":
-            pytest.fail(f"Funding deposit failed with {current.failure_code!r}")
-        if time.monotonic() >= deadline:
-            pytest.fail(f"Funding deposit did not settle; final status was {current.status!r}")
-        time.sleep(0.1)
+        ),
+        operation_name="funding deposit",
+    )
 
     funded = banking_api_client.get_account(
         account_id=account.id,

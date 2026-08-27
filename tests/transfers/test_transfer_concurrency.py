@@ -16,7 +16,6 @@ from totally_testable_banking_api_tests.api_models import (
 )
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
-from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
 
 
 @dataclass(frozen=True)
@@ -46,22 +45,15 @@ def _register_checking_account(
 
 def _fund_checking_account(
     banking_api_client: BankingApiClient,
+    settled_deposit_factory,
     account: _AuthenticatedCheckingAccount,
     *,
     amount: str,
 ) -> _AuthenticatedCheckingAccount:
-    deposit = banking_api_client.create_deposit(
+    settled_deposit_factory(
         destination_account_id=account.account.id,
         amount=amount,
         access_token=account.access_token,
-        idempotency_key=f"deposit-{uuid4()}",
-    )
-    wait_for_settlement(
-        lambda: banking_api_client.get_deposit(
-            instruction_id=deposit.id,
-            access_token=account.access_token,
-        ),
-        operation_name="concurrency-test funding deposit",
     )
 
     return _AuthenticatedCheckingAccount(
@@ -255,6 +247,7 @@ def test_opposing_direction_transfers_both_post_with_coherent_balances(
     banking_api_client: BankingApiClient,
     funded_account,
     registered_user_factory,
+    settled_deposit_factory,
 ) -> None:
     account_a = _AuthenticatedCheckingAccount(
         access_token=funded_account.access_token,
@@ -262,6 +255,7 @@ def test_opposing_direction_transfers_both_post_with_coherent_balances(
     )
     account_b = _fund_checking_account(
         banking_api_client,
+        settled_deposit_factory,
         _register_checking_account(banking_api_client, registered_user_factory),
         amount="100.00",
     )

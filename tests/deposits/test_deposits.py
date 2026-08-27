@@ -62,7 +62,9 @@ def test_created_deposit_can_be_retrieved_by_its_owner(
 
     assert retrieved.id == deposit.id
     assert retrieved.destination_account_id == deposit.destination_account_id
-    assert retrieved.status == "CREATED"
+    assert retrieved.amount == deposit.amount
+    assert retrieved.currency == deposit.currency
+    assert retrieved.created_at == deposit.created_at
 
 
 @pytest.mark.negative

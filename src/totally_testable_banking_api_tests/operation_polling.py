@@ -58,11 +58,12 @@ def _wait_for_terminal_status[Response: StatusResponse](
         current = fetch()
         if current.status in terminal_statuses:
             return current
-        if time.monotonic() >= deadline:
+        remaining_seconds = deadline - time.monotonic()
+        if remaining_seconds <= 0:
             raise timeout_error(
                 f"{operation_name} did not {timeout_action}; final status was {current.status!r}"
             )
-        time.sleep(poll_interval_seconds)
+        time.sleep(min(poll_interval_seconds, remaining_seconds))
 
 
 def wait_for_terminal_status[Response: StatusResponse](

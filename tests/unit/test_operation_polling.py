@@ -98,6 +98,32 @@ def test_wait_for_terminal_status_times_out_before_terminal_state(
         )
 
 
+def test_wait_for_terminal_status_limits_sleep_to_remaining_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    responses = iter(
+        [
+            StubOperation(status="PENDING"),
+            StubOperation(status="POSTED"),
+        ]
+    )
+    monotonic_values = iter([0.0, 0.8])
+    sleep_intervals: list[float] = []
+    monkeypatch.setattr(operation_polling.time, "monotonic", lambda: next(monotonic_values))
+    monkeypatch.setattr(operation_polling.time, "sleep", sleep_intervals.append)
+
+    result = wait_for_terminal_status(
+        lambda: next(responses),
+        operation_name="scheduled transfer",
+        terminal_statuses={"POSTED", "FAILED"},
+        timeout_seconds=1.0,
+        poll_interval_seconds=0.5,
+    )
+
+    assert result.status == "POSTED"
+    assert sleep_intervals == [pytest.approx(0.2)]
+
+
 def test_wait_for_settlement_returns_settled_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

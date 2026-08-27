@@ -2,12 +2,13 @@
 
 from collections.abc import Iterator
 from dataclasses import dataclass
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
 from totally_testable_banking_api_tests.api_models import (
     AccountResponse,
+    DepositResponse,
     ProductAccountType,
     UserResponse,
 )
@@ -52,6 +53,36 @@ class RegisteredUserFactory:
             password=password,
         )
         return RegisteredUser(user=user, email=email, password=password)
+
+
+class SettledDepositFactory:
+    """Create deposits through the product API and await settlement."""
+
+    def __init__(self, banking_api_client: BankingApiClient) -> None:
+        self._banking_api_client = banking_api_client
+
+    def __call__(
+        self,
+        *,
+        destination_account_id: UUID,
+        access_token: str,
+        amount: str = "100.00",
+        idempotency_key: str | None = None,
+    ) -> DepositResponse:
+        key = idempotency_key if idempotency_key is not None else f"deposit-{uuid4()}"
+        deposit = self._banking_api_client.create_deposit(
+            destination_account_id=destination_account_id,
+            amount=amount,
+            access_token=access_token,
+            idempotency_key=key,
+        )
+        return wait_for_settlement(
+            lambda: self._banking_api_client.get_deposit(
+                instruction_id=deposit.id,
+                access_token=access_token,
+            ),
+            operation_name="funding deposit",
+        )
 
 
 @pytest.fixture
@@ -116,9 +147,19 @@ def registered_user(
 
 
 @pytest.fixture
+def settled_deposit_factory(
+    banking_api_client: BankingApiClient,
+) -> SettledDepositFactory:
+    """Provide a function-scoped factory for settled deposit setup."""
+
+    return SettledDepositFactory(banking_api_client)
+
+
+@pytest.fixture
 def funded_account(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
+    settled_deposit_factory: SettledDepositFactory,
 ) -> FundedAccount:
     """Fund one unique user's checking account through normal product routes."""
 
@@ -133,18 +174,9 @@ def funded_account(
         )
         if account.account_type is ProductAccountType.CHECKING
     )
-    deposit = banking_api_client.create_deposit(
+    settled_deposit_factory(
         destination_account_id=account.id,
-        amount="100.00",
         access_token=token.access_token,
-        idempotency_key=f"deposit-{uuid4()}",
-    )
-    wait_for_settlement(
-        lambda: banking_api_client.get_deposit(
-            instruction_id=deposit.id,
-            access_token=token.access_token,
-        ),
-        operation_name="funding deposit",
     )
 
     funded = banking_api_client.get_account(

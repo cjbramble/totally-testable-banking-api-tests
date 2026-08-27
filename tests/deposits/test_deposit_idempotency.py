@@ -5,6 +5,8 @@ from uuid import uuid4
 
 import pytest
 
+from totally_testable_banking_api_tests.account_selection import get_account_by_type
+from totally_testable_banking_api_tests.api_models import ProductAccountType
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
@@ -19,7 +21,10 @@ def test_replayed_deposit_has_one_identity_and_one_financial_effect(
         email=registered_user.email,
         password=registered_user.password,
     )
-    account = banking_api_client.list_accounts(access_token=token.access_token)[0]
+    account = get_account_by_type(
+        banking_api_client.list_accounts(access_token=token.access_token),
+        ProductAccountType.CHECKING,
+    )
     account_before = banking_api_client.get_account(
         account_id=account.id,
         access_token=token.access_token,
@@ -79,7 +84,10 @@ def test_changed_deposit_payload_with_reused_key_is_rejected_without_additional_
         email=registered_user.email,
         password=registered_user.password,
     )
-    account = banking_api_client.list_accounts(access_token=token.access_token)[0]
+    account = get_account_by_type(
+        banking_api_client.list_accounts(access_token=token.access_token),
+        ProductAccountType.CHECKING,
+    )
     idempotency_key = f"deposit-{uuid4()}"
     first = banking_api_client.create_deposit(
         destination_account_id=account.id,
@@ -145,18 +153,24 @@ def test_two_users_can_use_the_same_deposit_key_independently(
         email=registered_user.email,
         password=registered_user.password,
     )
-    first_account = banking_api_client.list_accounts(
-        access_token=first_token.access_token,
-    )[0]
+    first_account = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=first_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
 
     second_user = registered_user_factory(display_name="Second Test User")
     second_token = banking_api_client.login(
         email=second_user.email,
         password=second_user.password,
     )
-    second_account = banking_api_client.list_accounts(
-        access_token=second_token.access_token,
-    )[0]
+    second_account = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=second_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
 
     first_before = banking_api_client.get_account(
         account_id=first_account.id,

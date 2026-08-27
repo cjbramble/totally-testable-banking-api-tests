@@ -7,8 +7,10 @@ import pytest
 from totally_testable_banking_api_tests import operation_polling
 from totally_testable_banking_api_tests.operation_polling import (
     OperationFailedError,
+    OperationPollingTimeoutError,
     OperationSettlementTimeoutError,
     wait_for_settlement,
+    wait_for_terminal_status,
 )
 
 pytestmark = pytest.mark.unit
@@ -18,6 +20,55 @@ pytestmark = pytest.mark.unit
 class StubOperation:
     status: str
     failure_code: str | None = None
+
+
+@pytest.mark.parametrize("terminal_status", ["POSTED", "FAILED"])
+def test_wait_for_terminal_status_returns_configured_terminal_response(
+    terminal_status: str,
+) -> None:
+    responses = iter(
+        [
+            StubOperation(status="PENDING"),
+            StubOperation(status=terminal_status),
+        ]
+    )
+
+    result = wait_for_terminal_status(
+        lambda: next(responses),
+        operation_name="scheduled transfer",
+        terminal_statuses={"POSTED", "FAILED"},
+        poll_interval_seconds=0,
+    )
+
+    assert result.status == terminal_status
+
+
+def test_wait_for_terminal_status_rejects_empty_terminal_statuses() -> None:
+    with pytest.raises(ValueError, match="terminal_statuses must not be empty"):
+        wait_for_terminal_status(
+            lambda: StubOperation(status="PENDING"),
+            operation_name="scheduled transfer",
+            terminal_statuses=set(),
+        )
+
+
+def test_wait_for_terminal_status_times_out_before_terminal_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monotonic_values = iter([0.0, 0.0, 1.1])
+    monkeypatch.setattr(operation_polling.time, "monotonic", lambda: next(monotonic_values))
+    monkeypatch.setattr(operation_polling.time, "sleep", lambda _interval: None)
+
+    with pytest.raises(
+        OperationPollingTimeoutError,
+        match="scheduled transfer did not reach a terminal status",
+    ):
+        wait_for_terminal_status(
+            lambda: StubOperation(status="PENDING"),
+            operation_name="scheduled transfer",
+            terminal_statuses={"POSTED", "FAILED"},
+            timeout_seconds=1.0,
+        )
 
 
 def test_wait_for_settlement_returns_settled_response() -> None:

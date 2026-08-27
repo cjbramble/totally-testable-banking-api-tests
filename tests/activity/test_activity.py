@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from totally_testable_banking_api_tests.account_selection import get_account_by_type
 from totally_testable_banking_api_tests.api_models import (
     AccountResponse,
     ActivityDirection,
@@ -62,18 +63,24 @@ def test_transfer_appears_as_sent_and_received_activity(
         email=registered_user.email,
         password=registered_user.password,
     )
-    sender_account = banking_api_client.list_accounts(
-        access_token=sender_token.access_token,
-    )[0]
+    sender_account = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=sender_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
 
     recipient = registered_user_factory(display_name="Recipient Test User")
     recipient_token = banking_api_client.login(
         email=recipient.email,
         password=recipient.password,
     )
-    recipient_account = banking_api_client.list_accounts(
-        access_token=recipient_token.access_token,
-    )[0]
+    recipient_account = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=recipient_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
 
     create_settled_deposit(
         destination_account_id=sender_account.id,

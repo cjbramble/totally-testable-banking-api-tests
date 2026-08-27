@@ -4,6 +4,8 @@ from uuid import uuid4
 
 import pytest
 
+from totally_testable_banking_api_tests.account_selection import get_account_by_type
+from totally_testable_banking_api_tests.api_models import ProductAccountType
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 
@@ -33,18 +35,24 @@ def test_invalid_amount_transfer_is_rejected_without_financial_effect(
         email=registered_user.email,
         password=registered_user.password,
     )
-    sender_account = banking_api_client.list_accounts(
-        access_token=sender_token.access_token,
-    )[0]
+    sender_account = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=sender_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
 
     recipient = registered_user_factory(display_name="Recipient Test User")
     recipient_token = banking_api_client.login(
         email=recipient.email,
         password=recipient.password,
     )
-    recipient_account = banking_api_client.list_accounts(
-        access_token=recipient_token.access_token,
-    )[0]
+    recipient_account = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=recipient_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
 
     sender_before = (sender_account.settled_balance, sender_account.available_balance)
     recipient_before = (
@@ -72,12 +80,18 @@ def test_invalid_amount_transfer_is_rejected_without_financial_effect(
     assert error.error is not None
     assert error.error.error.code == expected_error_code
 
-    sender_after = banking_api_client.list_accounts(
-        access_token=sender_token.access_token,
-    )[0]
-    recipient_after = banking_api_client.list_accounts(
-        access_token=recipient_token.access_token,
-    )[0]
+    sender_after = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=sender_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
+    recipient_after = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=recipient_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
     sender_activity_after = banking_api_client.list_activity(
         access_token=sender_token.access_token,
     ).items
@@ -114,18 +128,24 @@ def test_invalid_idempotency_key_is_rejected_without_financial_effect(
         email=registered_user.email,
         password=registered_user.password,
     )
-    sender_account = banking_api_client.list_accounts(
-        access_token=sender_token.access_token,
-    )[0]
+    sender_account = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=sender_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
 
     recipient = registered_user_factory(display_name="Recipient Test User")
     recipient_token = banking_api_client.login(
         email=recipient.email,
         password=recipient.password,
     )
-    recipient_account = banking_api_client.list_accounts(
-        access_token=recipient_token.access_token,
-    )[0]
+    recipient_account = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=recipient_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
 
     sender_before = (sender_account.settled_balance, sender_account.available_balance)
     recipient_before = (
@@ -153,12 +173,18 @@ def test_invalid_idempotency_key_is_rejected_without_financial_effect(
     assert error.error is not None
     assert error.error.error.code == expected_error_code
 
-    sender_after = banking_api_client.list_accounts(
-        access_token=sender_token.access_token,
-    )[0]
-    recipient_after = banking_api_client.list_accounts(
-        access_token=recipient_token.access_token,
-    )[0]
+    sender_after = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=sender_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
+    recipient_after = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=recipient_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
     sender_activity_after = banking_api_client.list_activity(
         access_token=sender_token.access_token,
     ).items
@@ -185,9 +211,12 @@ def test_foreign_source_account_is_rejected_without_financial_effect(
         email=registered_user.email,
         password=registered_user.password,
     )
-    source_account = banking_api_client.list_accounts(
-        access_token=owner_token.access_token,
-    )[0]
+    source_account = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=owner_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
 
     create_settled_deposit(
         destination_account_id=source_account.id,
@@ -199,9 +228,12 @@ def test_foreign_source_account_is_rejected_without_financial_effect(
         email=actor.email,
         password=actor.password,
     )
-    destination_account = banking_api_client.list_accounts(
-        access_token=actor_token.access_token,
-    )[0]
+    destination_account = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=actor_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
 
     source_before = banking_api_client.get_account(
         account_id=source_account.id,
@@ -275,9 +307,12 @@ def test_unknown_destination_account_is_rejected_without_financial_effect(
         email=registered_user.email,
         password=registered_user.password,
     )
-    source_account = banking_api_client.list_accounts(
-        access_token=sender_token.access_token,
-    )[0]
+    source_account = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=sender_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
     create_settled_deposit(
         destination_account_id=source_account.id,
         access_token=sender_token.access_token,
@@ -333,7 +368,10 @@ def test_self_transfer_is_rejected_without_financial_effect(
         email=registered_user.email,
         password=registered_user.password,
     )
-    account = banking_api_client.list_accounts(access_token=token.access_token)[0]
+    account = get_account_by_type(
+        banking_api_client.list_accounts(access_token=token.access_token),
+        ProductAccountType.CHECKING,
+    )
     create_settled_deposit(
         destination_account_id=account.id,
         access_token=token.access_token,
@@ -390,9 +428,12 @@ def test_transfer_exceeding_available_balance_is_rejected_without_financial_effe
         email=registered_user.email,
         password=registered_user.password,
     )
-    source_account = banking_api_client.list_accounts(
-        access_token=sender_token.access_token,
-    )[0]
+    source_account = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=sender_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
     create_settled_deposit(
         destination_account_id=source_account.id,
         access_token=sender_token.access_token,
@@ -404,9 +445,12 @@ def test_transfer_exceeding_available_balance_is_rejected_without_financial_effe
         email=recipient.email,
         password=recipient.password,
     )
-    destination_account = banking_api_client.list_accounts(
-        access_token=recipient_token.access_token,
-    )[0]
+    destination_account = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=recipient_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
 
     source_before = banking_api_client.get_account(
         account_id=source_account.id,
@@ -480,9 +524,12 @@ def test_transfer_missing_destination_is_rejected_without_financial_effect(
         email=registered_user.email,
         password=registered_user.password,
     )
-    source_account = banking_api_client.list_accounts(
-        access_token=sender_token.access_token,
-    )[0]
+    source_account = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=sender_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
     create_settled_deposit(
         destination_account_id=source_account.id,
         access_token=sender_token.access_token,

@@ -1,6 +1,5 @@
 """Transfer idempotency tests with durable balance and activity oracles."""
 
-import time
 from dataclasses import dataclass
 from decimal import Decimal
 from uuid import UUID, uuid4
@@ -11,6 +10,7 @@ import pytest
 from totally_testable_banking_api_tests.api_models import AccountResponse, DepositResponse
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import ApiClient, UnexpectedStatusError
+from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
 from totally_testable_banking_api_tests.settings import load_settings
 
 
@@ -61,21 +61,13 @@ def _fund_account_and_wait_for_settlement(
         access_token=access_token,
         idempotency_key=idempotency_key or f"deposit-{uuid4()}",
     )
-    deadline = time.monotonic() + 10.0
-    while True:
-        current_funding = banking_api_client.get_deposit(
+    return wait_for_settlement(
+        lambda: banking_api_client.get_deposit(
             instruction_id=funding.id,
             access_token=access_token,
-        )
-        if current_funding.status == "SETTLED":
-            return current_funding
-        if current_funding.status == "FAILED":
-            pytest.fail(f"Funding deposit failed with {current_funding.failure_code!r}")
-        if time.monotonic() >= deadline:
-            pytest.fail(
-                f"Funding deposit did not settle; final status was {current_funding.status!r}"
-            )
-        time.sleep(0.1)
+        ),
+        operation_name="funding deposit",
+    )
 
 
 @pytest.fixture

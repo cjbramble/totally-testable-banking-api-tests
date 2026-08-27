@@ -103,6 +103,7 @@ def _create_funded_activity_user(
 def test_transfer_appears_as_sent_and_received_activity(
     banking_api_client: BankingApiClient,
     registered_user,
+    registered_user_factory,
 ) -> None:
     sender_token = banking_api_client.login(
         email=registered_user.email,
@@ -112,17 +113,10 @@ def test_transfer_appears_as_sent_and_received_activity(
         access_token=sender_token.access_token,
     )[0]
 
-    recipient_id = uuid4().hex
-    recipient_email = f"api-test-user-{recipient_id}@example.com"
-    recipient_password = f"Test-user-{recipient_id}"
-    banking_api_client.register_user(
-        email=recipient_email,
-        display_name="Recipient Test User",
-        password=recipient_password,
-    )
+    recipient = registered_user_factory(display_name="Recipient Test User")
     recipient_token = banking_api_client.login(
-        email=recipient_email,
-        password=recipient_password,
+        email=recipient.email,
+        password=recipient.password,
     )
     recipient_account = banking_api_client.list_accounts(
         access_token=recipient_token.access_token,
@@ -402,19 +396,13 @@ def test_altered_activity_cursor_is_rejected(
 def test_activity_cursor_from_another_user_does_not_expose_owner_activity(
     banking_api_client: BankingApiClient,
     registered_user,
+    registered_user_factory,
 ) -> None:
-    other_id = uuid4().hex
-    other_email = f"api-test-user-{other_id}@example.com"
-    other_password = f"Test-user-{other_id}"
-    banking_api_client.register_user(
-        email=other_email,
-        display_name="Other Test User",
-        password=other_password,
-    )
+    other = registered_user_factory(display_name="Other Test User")
     other_user = _create_funded_activity_user(
         banking_api_client,
-        email=other_email,
-        password=other_password,
+        email=other.email,
+        password=other.password,
     )
     cursor_owner = _create_funded_activity_user(
         banking_api_client,
@@ -502,23 +490,17 @@ def test_activity_limit_rejects_values_outside_documented_range(
 def test_mixed_activity_cursor_traversal_preserves_identity_and_order(
     banking_api_client: BankingApiClient,
     registered_user,
+    registered_user_factory,
 ) -> None:
     activity_user = _create_funded_activity_user(
         banking_api_client,
         email=registered_user.email,
         password=registered_user.password,
     )
-    recipient_id = uuid4().hex
-    recipient_email = f"api-test-user-{recipient_id}@example.com"
-    recipient_password = f"Test-user-{recipient_id}"
-    banking_api_client.register_user(
-        email=recipient_email,
-        display_name="Recipient Test User",
-        password=recipient_password,
-    )
+    recipient = registered_user_factory(display_name="Recipient Test User")
     recipient_token = banking_api_client.login(
-        email=recipient_email,
-        password=recipient_password,
+        email=recipient.email,
+        password=recipient.password,
     )
     recipient_accounts = banking_api_client.list_accounts(
         access_token=recipient_token.access_token,

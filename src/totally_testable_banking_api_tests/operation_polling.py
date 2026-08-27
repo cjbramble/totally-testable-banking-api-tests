@@ -31,6 +31,17 @@ class OperationSettlementTimeoutError(OperationPollingTimeoutError):
     """An asynchronous operation did not settle before its deadline."""
 
 
+def _validate_polling_arguments(
+    *,
+    timeout_seconds: float,
+    poll_interval_seconds: float,
+) -> None:
+    if timeout_seconds <= 0:
+        raise ValueError("timeout_seconds must be greater than 0")
+    if poll_interval_seconds <= 0:
+        raise ValueError("poll_interval_seconds must be greater than 0")
+
+
 def _wait_for_terminal_status[Response: StatusResponse](
     fetch: Callable[[], Response],
     *,
@@ -66,6 +77,10 @@ def wait_for_terminal_status[Response: StatusResponse](
 
     if not terminal_statuses:
         raise ValueError("terminal_statuses must not be empty")
+    _validate_polling_arguments(
+        timeout_seconds=timeout_seconds,
+        poll_interval_seconds=poll_interval_seconds,
+    )
 
     return _wait_for_terminal_status(
         fetch,
@@ -87,6 +102,10 @@ def wait_for_settlement[OperationResponse: OperationStatus](
 ) -> OperationResponse:
     """Return the settled response, failing fast on failure or timeout."""
 
+    _validate_polling_arguments(
+        timeout_seconds=timeout_seconds,
+        poll_interval_seconds=poll_interval_seconds,
+    )
     current = _wait_for_terminal_status(
         fetch,
         operation_name=operation_name,

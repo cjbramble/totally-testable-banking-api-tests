@@ -25,6 +25,7 @@ class StubOperation:
 @pytest.mark.parametrize("terminal_status", ["POSTED", "FAILED"])
 def test_wait_for_terminal_status_returns_configured_terminal_response(
     terminal_status: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     responses = iter(
         [
@@ -32,12 +33,12 @@ def test_wait_for_terminal_status_returns_configured_terminal_response(
             StubOperation(status=terminal_status),
         ]
     )
+    monkeypatch.setattr(operation_polling.time, "sleep", lambda _interval: None)
 
     result = wait_for_terminal_status(
         lambda: next(responses),
         operation_name="scheduled transfer",
         terminal_statuses={"POSTED", "FAILED"},
-        poll_interval_seconds=0,
     )
 
     assert result.status == terminal_status
@@ -49,6 +50,32 @@ def test_wait_for_terminal_status_rejects_empty_terminal_statuses() -> None:
             lambda: StubOperation(status="PENDING"),
             operation_name="scheduled transfer",
             terminal_statuses=set(),
+        )
+
+
+@pytest.mark.parametrize("invalid_timeout", [0, -1])
+def test_wait_for_terminal_status_rejects_nonpositive_timeout(
+    invalid_timeout: float,
+) -> None:
+    with pytest.raises(ValueError, match="timeout_seconds must be greater than 0"):
+        wait_for_terminal_status(
+            lambda: StubOperation(status="PENDING"),
+            operation_name="scheduled transfer",
+            terminal_statuses={"POSTED", "FAILED"},
+            timeout_seconds=invalid_timeout,
+        )
+
+
+@pytest.mark.parametrize("invalid_interval", [0, -1])
+def test_wait_for_terminal_status_rejects_nonpositive_poll_interval(
+    invalid_interval: float,
+) -> None:
+    with pytest.raises(ValueError, match="poll_interval_seconds must be greater than 0"):
+        wait_for_terminal_status(
+            lambda: StubOperation(status="PENDING"),
+            operation_name="scheduled transfer",
+            terminal_statuses={"POSTED", "FAILED"},
+            poll_interval_seconds=invalid_interval,
         )
 
 
@@ -71,18 +98,20 @@ def test_wait_for_terminal_status_times_out_before_terminal_state(
         )
 
 
-def test_wait_for_settlement_returns_settled_response() -> None:
+def test_wait_for_settlement_returns_settled_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     responses = iter(
         [
             StubOperation(status="PENDING"),
             StubOperation(status="SETTLED"),
         ]
     )
+    monkeypatch.setattr(operation_polling.time, "sleep", lambda _interval: None)
 
     result = wait_for_settlement(
         lambda: next(responses),
         operation_name="deposit",
-        poll_interval_seconds=0,
     )
 
     assert result.status == "SETTLED"
@@ -93,6 +122,30 @@ def test_wait_for_settlement_reports_terminal_failure() -> None:
         wait_for_settlement(
             lambda: StubOperation(status="FAILED", failure_code="DECLINED"),
             operation_name="deposit",
+        )
+
+
+@pytest.mark.parametrize("invalid_timeout", [0, -1])
+def test_wait_for_settlement_rejects_nonpositive_timeout(
+    invalid_timeout: float,
+) -> None:
+    with pytest.raises(ValueError, match="timeout_seconds must be greater than 0"):
+        wait_for_settlement(
+            lambda: StubOperation(status="PENDING"),
+            operation_name="deposit",
+            timeout_seconds=invalid_timeout,
+        )
+
+
+@pytest.mark.parametrize("invalid_interval", [0, -1])
+def test_wait_for_settlement_rejects_nonpositive_poll_interval(
+    invalid_interval: float,
+) -> None:
+    with pytest.raises(ValueError, match="poll_interval_seconds must be greater than 0"):
+        wait_for_settlement(
+            lambda: StubOperation(status="PENDING"),
+            operation_name="deposit",
+            poll_interval_seconds=invalid_interval,
         )
 
 

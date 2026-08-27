@@ -49,7 +49,7 @@ def funded_transfer_context(
     banking_api_client: BankingApiClient,
     registered_user,
     registered_user_factory,
-    settled_deposit_factory,
+    create_settled_deposit,
 ) -> FundedTransferContext:
     """Create fresh participants with a settled sender balance for each test."""
 
@@ -61,7 +61,7 @@ def funded_transfer_context(
         access_token=sender_token.access_token,
     )[0]
 
-    settled_deposit_factory(
+    create_settled_deposit(
         destination_account_id=source_account.id,
         access_token=sender_token.access_token,
     )
@@ -238,10 +238,10 @@ def test_changed_payload_with_reused_key_is_rejected_without_additional_effect(
 def test_two_users_can_use_the_same_idempotency_key_independently(
     banking_api_client: BankingApiClient,
     funded_transfer_context: FundedTransferContext,
-    settled_deposit_factory,
+    create_settled_deposit,
 ) -> None:
     context = funded_transfer_context
-    settled_deposit_factory(
+    create_settled_deposit(
         destination_account_id=context.destination_account.id,
         access_token=context.recipient_access_token,
     )
@@ -316,7 +316,7 @@ def test_two_users_can_use_the_same_idempotency_key_independently(
 def test_same_key_is_independent_across_deposit_and_transfer_operations(
     banking_api_client: BankingApiClient,
     funded_transfer_context: FundedTransferContext,
-    settled_deposit_factory,
+    create_settled_deposit,
 ) -> None:
     context = funded_transfer_context
     source_before = banking_api_client.get_account(
@@ -335,7 +335,7 @@ def test_same_key_is_independent_across_deposit_and_transfer_operations(
     ).items
 
     shared_key = f"cross-operation-{uuid4()}"
-    deposit = settled_deposit_factory(
+    deposit = create_settled_deposit(
         destination_account_id=context.source_account.id,
         access_token=context.sender_access_token,
         amount="100.00",

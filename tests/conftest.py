@@ -147,10 +147,10 @@ def registered_user(
 
 
 @pytest.fixture
-def settled_deposit_factory(
+def create_settled_deposit(
     banking_api_client: BankingApiClient,
 ) -> SettledDepositFactory:
-    """Provide a function-scoped factory for settled deposit setup."""
+    """Provide a callable that creates a deposit and waits for settlement."""
 
     return SettledDepositFactory(banking_api_client)
 
@@ -159,7 +159,7 @@ def settled_deposit_factory(
 def funded_account(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
-    settled_deposit_factory: SettledDepositFactory,
+    create_settled_deposit: SettledDepositFactory,
 ) -> FundedAccount:
     """Fund one unique user's checking account through normal product routes."""
 
@@ -174,7 +174,7 @@ def funded_account(
         )
         if account.account_type is ProductAccountType.CHECKING
     )
-    settled_deposit_factory(
+    create_settled_deposit(
         destination_account_id=account.id,
         access_token=token.access_token,
     )

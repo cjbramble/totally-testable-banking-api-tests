@@ -179,7 +179,7 @@ def test_foreign_source_account_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
     registered_user,
     registered_user_factory,
-    settled_deposit_factory,
+    create_settled_deposit,
 ) -> None:
     owner_token = banking_api_client.login(
         email=registered_user.email,
@@ -189,7 +189,7 @@ def test_foreign_source_account_is_rejected_without_financial_effect(
         access_token=owner_token.access_token,
     )[0]
 
-    settled_deposit_factory(
+    create_settled_deposit(
         destination_account_id=source_account.id,
         access_token=owner_token.access_token,
     )
@@ -269,7 +269,7 @@ def test_foreign_source_account_is_rejected_without_financial_effect(
 def test_unknown_destination_account_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
     registered_user,
-    settled_deposit_factory,
+    create_settled_deposit,
 ) -> None:
     sender_token = banking_api_client.login(
         email=registered_user.email,
@@ -278,7 +278,7 @@ def test_unknown_destination_account_is_rejected_without_financial_effect(
     source_account = banking_api_client.list_accounts(
         access_token=sender_token.access_token,
     )[0]
-    settled_deposit_factory(
+    create_settled_deposit(
         destination_account_id=source_account.id,
         access_token=sender_token.access_token,
     )
@@ -327,14 +327,14 @@ def test_unknown_destination_account_is_rejected_without_financial_effect(
 def test_self_transfer_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
     registered_user,
-    settled_deposit_factory,
+    create_settled_deposit,
 ) -> None:
     token = banking_api_client.login(
         email=registered_user.email,
         password=registered_user.password,
     )
     account = banking_api_client.list_accounts(access_token=token.access_token)[0]
-    settled_deposit_factory(
+    create_settled_deposit(
         destination_account_id=account.id,
         access_token=token.access_token,
     )
@@ -384,7 +384,7 @@ def test_transfer_exceeding_available_balance_is_rejected_without_financial_effe
     banking_api_client: BankingApiClient,
     registered_user,
     registered_user_factory,
-    settled_deposit_factory,
+    create_settled_deposit,
 ) -> None:
     sender_token = banking_api_client.login(
         email=registered_user.email,
@@ -393,7 +393,7 @@ def test_transfer_exceeding_available_balance_is_rejected_without_financial_effe
     source_account = banking_api_client.list_accounts(
         access_token=sender_token.access_token,
     )[0]
-    settled_deposit_factory(
+    create_settled_deposit(
         destination_account_id=source_account.id,
         access_token=sender_token.access_token,
         amount="10.00",
@@ -474,7 +474,7 @@ def test_transfer_exceeding_available_balance_is_rejected_without_financial_effe
 def test_transfer_missing_destination_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
     registered_user,
-    settled_deposit_factory,
+    create_settled_deposit,
 ) -> None:
     sender_token = banking_api_client.login(
         email=registered_user.email,
@@ -483,7 +483,7 @@ def test_transfer_missing_destination_is_rejected_without_financial_effect(
     source_account = banking_api_client.list_accounts(
         access_token=sender_token.access_token,
     )[0]
-    settled_deposit_factory(
+    create_settled_deposit(
         destination_account_id=source_account.id,
         access_token=sender_token.access_token,
     )

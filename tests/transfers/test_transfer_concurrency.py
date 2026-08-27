@@ -45,12 +45,12 @@ def _register_checking_account(
 
 def _fund_checking_account(
     banking_api_client: BankingApiClient,
-    settled_deposit_factory,
+    create_settled_deposit,
     account: _AuthenticatedCheckingAccount,
     *,
     amount: str,
 ) -> _AuthenticatedCheckingAccount:
-    settled_deposit_factory(
+    create_settled_deposit(
         destination_account_id=account.account.id,
         amount=amount,
         access_token=account.access_token,
@@ -247,7 +247,7 @@ def test_opposing_direction_transfers_both_post_with_coherent_balances(
     banking_api_client: BankingApiClient,
     funded_account,
     registered_user_factory,
-    settled_deposit_factory,
+    create_settled_deposit,
 ) -> None:
     account_a = _AuthenticatedCheckingAccount(
         access_token=funded_account.access_token,
@@ -255,7 +255,7 @@ def test_opposing_direction_transfers_both_post_with_coherent_balances(
     )
     account_b = _fund_checking_account(
         banking_api_client,
-        settled_deposit_factory,
+        create_settled_deposit,
         _register_checking_account(banking_api_client, registered_user_factory),
         amount="100.00",
     )

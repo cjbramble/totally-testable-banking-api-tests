@@ -26,7 +26,7 @@ class _FundedActivityUser:
 
 def _create_funded_activity_user(
     banking_api_client: BankingApiClient,
-    settled_deposit_factory,
+    create_settled_deposit,
     *,
     email: str,
     password: str,
@@ -39,7 +39,7 @@ def _create_funded_activity_user(
     savings = next(
         account for account in accounts if account.account_type is ProductAccountType.SAVINGS
     )
-    deposit = settled_deposit_factory(
+    deposit = create_settled_deposit(
         destination_account_id=checking.id,
         access_token=token.access_token,
     )
@@ -56,7 +56,7 @@ def test_transfer_appears_as_sent_and_received_activity(
     banking_api_client: BankingApiClient,
     registered_user,
     registered_user_factory,
-    settled_deposit_factory,
+    create_settled_deposit,
 ) -> None:
     sender_token = banking_api_client.login(
         email=registered_user.email,
@@ -75,7 +75,7 @@ def test_transfer_appears_as_sent_and_received_activity(
         access_token=recipient_token.access_token,
     )[0]
 
-    settled_deposit_factory(
+    create_settled_deposit(
         destination_account_id=sender_account.id,
         access_token=sender_token.access_token,
     )
@@ -121,11 +121,11 @@ def test_transfer_appears_as_sent_and_received_activity(
 def test_activity_page_boundaries_return_expected_operations_without_cursor(
     banking_api_client: BankingApiClient,
     registered_user,
-    settled_deposit_factory,
+    create_settled_deposit,
 ) -> None:
     activity_user = _create_funded_activity_user(
         banking_api_client,
-        settled_deposit_factory,
+        create_settled_deposit,
         email=registered_user.email,
         password=registered_user.password,
     )
@@ -164,11 +164,11 @@ def test_activity_page_boundaries_return_expected_operations_without_cursor(
 def test_activity_cursor_traversal_has_no_duplicate_or_missing_operations(
     banking_api_client: BankingApiClient,
     registered_user,
-    settled_deposit_factory,
+    create_settled_deposit,
 ) -> None:
     activity_user = _create_funded_activity_user(
         banking_api_client,
-        settled_deposit_factory,
+        create_settled_deposit,
         email=registered_user.email,
         password=registered_user.password,
     )
@@ -217,11 +217,11 @@ def test_activity_cursor_traversal_has_no_duplicate_or_missing_operations(
 def test_activity_cursor_remains_stable_when_newer_operation_is_inserted(
     banking_api_client: BankingApiClient,
     registered_user,
-    settled_deposit_factory,
+    create_settled_deposit,
 ) -> None:
     activity_user = _create_funded_activity_user(
         banking_api_client,
-        settled_deposit_factory,
+        create_settled_deposit,
         email=registered_user.email,
         password=registered_user.password,
     )
@@ -308,11 +308,11 @@ def test_malformed_activity_cursor_is_rejected(
 def test_altered_activity_cursor_is_rejected(
     banking_api_client: BankingApiClient,
     registered_user,
-    settled_deposit_factory,
+    create_settled_deposit,
 ) -> None:
     activity_user = _create_funded_activity_user(
         banking_api_client,
-        settled_deposit_factory,
+        create_settled_deposit,
         email=registered_user.email,
         password=registered_user.password,
     )
@@ -351,18 +351,18 @@ def test_activity_cursor_from_another_user_does_not_expose_owner_activity(
     banking_api_client: BankingApiClient,
     registered_user,
     registered_user_factory,
-    settled_deposit_factory,
+    create_settled_deposit,
 ) -> None:
     other = registered_user_factory(display_name="Other Test User")
     other_user = _create_funded_activity_user(
         banking_api_client,
-        settled_deposit_factory,
+        create_settled_deposit,
         email=other.email,
         password=other.password,
     )
     cursor_owner = _create_funded_activity_user(
         banking_api_client,
-        settled_deposit_factory,
+        create_settled_deposit,
         email=registered_user.email,
         password=registered_user.password,
     )
@@ -448,11 +448,11 @@ def test_mixed_activity_cursor_traversal_preserves_identity_and_order(
     banking_api_client: BankingApiClient,
     registered_user,
     registered_user_factory,
-    settled_deposit_factory,
+    create_settled_deposit,
 ) -> None:
     activity_user = _create_funded_activity_user(
         banking_api_client,
-        settled_deposit_factory,
+        create_settled_deposit,
         email=registered_user.email,
         password=registered_user.password,
     )

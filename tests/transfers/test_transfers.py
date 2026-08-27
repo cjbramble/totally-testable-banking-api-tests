@@ -14,7 +14,7 @@ def test_p2p_transfer_moves_exact_amount_between_accounts(
     banking_api_client: BankingApiClient,
     registered_user,
     registered_user_factory,
-    settled_deposit_factory,
+    create_settled_deposit,
 ) -> None:
     sender_token = banking_api_client.login(
         email=registered_user.email,
@@ -30,7 +30,7 @@ def test_p2p_transfer_moves_exact_amount_between_accounts(
         password=recipient.password,
     )
 
-    settled_deposit_factory(
+    create_settled_deposit(
         destination_account_id=sender_account.id,
         access_token=sender_token.access_token,
     )
@@ -80,7 +80,7 @@ def test_outsider_cannot_retrieve_another_users_transfer(
     banking_api_client: BankingApiClient,
     registered_user,
     registered_user_factory,
-    settled_deposit_factory,
+    create_settled_deposit,
 ) -> None:
     owner_token = banking_api_client.login(
         email=registered_user.email,
@@ -99,7 +99,7 @@ def test_outsider_cannot_retrieve_another_users_transfer(
         access_token=recipient_token.access_token,
     )[0]
 
-    settled_deposit_factory(
+    create_settled_deposit(
         destination_account_id=owner_account.id,
         access_token=owner_token.access_token,
     )

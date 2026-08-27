@@ -102,6 +102,26 @@ Every test mode runs Ruff, formatting, and mypy; creates an isolated application
 JUnit XML beneath `artifacts/hermetic/`. The generated Docker resources are removed whether pytest
 passes or fails.
 
+### Verified final gate
+
+On 2026-08-27, `./scripts/run-hermetic.sh --test` passed against a fresh, isolated stack:
+
+| Phase | Result |
+| --- | --- |
+| Ruff, format, and mypy | Passed |
+| Fresh database migrations and application readiness | Passed |
+| Smoke selection | 3 passed |
+| Complete serial suite | 120 passed |
+| Ordinary suite with two xdist workers | 117 passed |
+| Dedicated concurrency suite | 3 passed |
+| Compose teardown | No run containers, network, or volumes remained |
+
+Run `ttb-api-tests-20260827142053-24115` produced separately named `smoke.xml`, `serial.xml`,
+`parallel.xml`, and `concurrency.xml` reports. Each JUnit suite name includes both its execution
+phase and the unique run ID. Genuine failed run `ttb-api-tests-20260827040309-79386` identified the
+failed test and its `6.00` versus `25.00` assertion, captured Compose status and logs, and left no
+run containers, network, or volumes. No failure was manufactured solely for gate evidence.
+
 Directories group tests by owned behavior:
 
 - `activity/` — activity projections and keyset pagination;
@@ -140,3 +160,23 @@ It does not:
 
 Live tests register unique users through normal product routes. Registration creates empty
 checking and savings accounts; tests do not depend on the shared demo users.
+
+## Risk coverage map
+
+This map assigns each important risk to one primary owning layer. Secondary observables strengthen
+the result without replacing the primary oracle.
+
+| Risk | Owning layer | Test module | Setup strategy | Primary oracle | Secondary oracle | Parallel-safety notes | Why another layer does not own it |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Unsafe or incomplete local configuration | Automation unit | `tests/unit/test_settings.py` | Isolated environment changes with `monkeypatch` | Settings validation result | Specific validation message | No shared process state persists after each test | A live API test should not be needed to prove test-runner safeguards |
+| Registration, token authentication, and browser sessions | Banking API | `tests/auth/` | Unique users created through product routes | Documented status and response model | Account list, cookie persistence, CSRF rejection, or error envelope | UUID-based users; function-scoped clients | UI coverage cannot efficiently enumerate the HTTP authentication contract |
+| Resource ownership and authorization | Banking API | `tests/auth/test_authorization.py` and resource modules | Separate owner and outsider users | Owner succeeds while outsider is rejected | No protected resource data is exposed | Every test owns its users and resources | Unit tests cannot prove enforcement across the deployed HTTP boundary |
+| P2P and own-account money movement | Banking API | `tests/transfers/test_transfers.py`, `tests/transfers/test_account_transfers.py` | Generated users plus settled deposits | Exact debit and credit amounts | Operation status and activity records | Per-test accounts and idempotency keys | UI assertions are slower and less precise for balance invariants |
+| Invalid transfer requests have no financial effect | Banking API | `tests/transfers/test_transfer_rejections.py` | Funded source plus isolated invalid request | Documented rejection | Before-and-after balances remain equal | Unique users, accounts, and request keys | Schema-only tests cannot prove the absence of a financial side effect |
+| Retry and idempotency safety | Banking API | Deposit, withdrawal, and transfer idempotency modules | Unique operation-scoped idempotency keys | One operation identity and one financial effect | Cross-user and cross-operation key independence | Keys include UUIDs and state is test-owned | Client unit tests cannot prove server-side deduplication |
+| Asynchronous deposit and withdrawal lifecycle | Banking API | `tests/deposits/test_deposits.py`, `tests/withdrawals/test_withdrawals.py` | Product request followed by bounded status polling | Terminal operation status and exact balance change | Matching activity entry | Polling is operation-specific; no fixed sleeps | Processor-only tests cannot prove the banking API projection and ledger effect |
+| Bank-to-processor interaction contract | Bank-processor boundary | `tests/processor/test_processor_contract.py` | Operation-scoped processor scenario through its control API | Banking operation reflects the configured processor outcome | Balance, activity, reservation, and duplicate-callback invariants | Unique scenario and instruction identifiers | Ordinary banking API tests should not couple to simulated-provider controls |
+| Activity ordering, pagination, and isolation | Banking API | `tests/activity/test_activity.py` | Multiple generated operations with captured cursors | Stable, complete, correctly ordered traversal | Cursor tamper and cross-user isolation checks | Activity belongs only to generated users | Database checks would bypass the published projection and cursor behavior |
+| Scheduled transfer execution and cancellation | Banking API plus bounded local worker control | `tests/transfers/test_account_transfers.py` | Future-dated operation and exact-operation worker invocation | Correct pre-due, canceled, posted, or failed state | Exact balances and activity | Worker command targets one operation and date; no global clock/reset | Waiting on wall time is nondeterministic, while direct database mutation breaks the boundary |
+| Concurrent transfer invariants | Banking API | `tests/transfers/test_transfer_concurrency.py` | Coordinated requests against test-owned accounts | No overspend or duplicate financial effect | Coherent terminal operations and balances | Runs as a dedicated serial pytest selection because each test creates its own request concurrency | Serial functional tests cannot expose race conditions; generic xdist overlap is not a controlled race |
+| Automation client, models, polling, and command wrappers | Automation unit | `tests/unit/` | HTTPX transports and local stubs | Exact request serialization, parsing, and control flow | Diagnostic exceptions and strict model validation | No live shared services | These are implementation details of the test harness, not banking product behavior |

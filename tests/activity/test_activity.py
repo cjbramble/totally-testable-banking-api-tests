@@ -1,6 +1,5 @@
 """Activity projection and keyset pagination tests."""
 
-import time
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
@@ -14,6 +13,7 @@ from totally_testable_banking_api_tests.api_models import (
 )
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
+from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
 
 
 @dataclass(frozen=True)
@@ -22,48 +22,6 @@ class _FundedActivityUser:
     checking: AccountResponse
     savings: AccountResponse
     deposit_id: UUID
-
-
-def _wait_for_deposit_settlement(
-    banking_api_client: BankingApiClient,
-    *,
-    instruction_id: UUID,
-    access_token: str,
-) -> None:
-    deadline = time.monotonic() + 10.0
-    while True:
-        current = banking_api_client.get_deposit(
-            instruction_id=instruction_id,
-            access_token=access_token,
-        )
-        if current.status == "SETTLED":
-            return
-        if current.status == "FAILED":
-            pytest.fail(f"Funding deposit failed with {current.failure_code!r}")
-        if time.monotonic() >= deadline:
-            pytest.fail(f"Funding deposit did not settle; final status was {current.status!r}")
-        time.sleep(0.1)
-
-
-def _wait_for_withdrawal_settlement(
-    banking_api_client: BankingApiClient,
-    *,
-    instruction_id: UUID,
-    access_token: str,
-) -> None:
-    deadline = time.monotonic() + 10.0
-    while True:
-        current = banking_api_client.get_withdrawal(
-            instruction_id=instruction_id,
-            access_token=access_token,
-        )
-        if current.status == "SETTLED":
-            return
-        if current.status == "FAILED":
-            pytest.fail(f"Withdrawal failed with {current.failure_code!r}")
-        if time.monotonic() >= deadline:
-            pytest.fail(f"Withdrawal did not settle; final status was {current.status!r}")
-        time.sleep(0.1)
 
 
 def _create_funded_activity_user(
@@ -86,10 +44,12 @@ def _create_funded_activity_user(
         access_token=token.access_token,
         idempotency_key=f"deposit-{uuid4()}",
     )
-    _wait_for_deposit_settlement(
-        banking_api_client,
-        instruction_id=deposit.id,
-        access_token=token.access_token,
+    wait_for_settlement(
+        lambda: banking_api_client.get_deposit(
+            instruction_id=deposit.id,
+            access_token=token.access_token,
+        ),
+        operation_name="activity-user funding deposit",
     )
     return _FundedActivityUser(
         access_token=token.access_token,
@@ -128,10 +88,12 @@ def test_transfer_appears_as_sent_and_received_activity(
         access_token=sender_token.access_token,
         idempotency_key=f"deposit-{uuid4()}",
     )
-    _wait_for_deposit_settlement(
-        banking_api_client,
-        instruction_id=funding.id,
-        access_token=sender_token.access_token,
+    wait_for_settlement(
+        lambda: banking_api_client.get_deposit(
+            instruction_id=funding.id,
+            access_token=sender_token.access_token,
+        ),
+        operation_name="sender funding deposit",
     )
 
     transfer = banking_api_client.create_transfer(
@@ -530,10 +492,12 @@ def test_mixed_activity_cursor_traversal_preserves_identity_and_order(
         access_token=activity_user.access_token,
         idempotency_key=f"withdrawal-{uuid4()}",
     )
-    _wait_for_withdrawal_settlement(
-        banking_api_client,
-        instruction_id=withdrawal.id,
-        access_token=activity_user.access_token,
+    wait_for_settlement(
+        lambda: banking_api_client.get_withdrawal(
+            instruction_id=withdrawal.id,
+            access_token=activity_user.access_token,
+        ),
+        operation_name="activity withdrawal",
     )
 
     first_page = banking_api_client.list_activity(

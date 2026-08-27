@@ -1,6 +1,5 @@
 """Live own-account transfer lifecycle and financial-invariant tests."""
 
-import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -16,6 +15,7 @@ from totally_testable_banking_api_tests.api_models import (
 )
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
+from totally_testable_banking_api_tests.operation_polling import wait_for_terminal_status
 from totally_testable_banking_api_tests.scheduled_worker_control import (
     ScheduledWorkerCommandError,
     ScheduledWorkerControl,
@@ -53,17 +53,14 @@ def _wait_for_transfer_terminal(
     transfer_id: UUID,
     access_token: str,
 ) -> TransferResponse:
-    deadline = time.monotonic() + 10.0
-    while True:
-        current = banking_api_client.get_transfer(
+    return wait_for_terminal_status(
+        lambda: banking_api_client.get_transfer(
             transfer_id=transfer_id,
             access_token=access_token,
-        )
-        if current.status in {"POSTED", "FAILED"}:
-            return current
-        if time.monotonic() >= deadline:
-            pytest.fail(f"Scheduled transfer did not finish; final status was {current.status!r}")
-        time.sleep(0.1)
+        ),
+        operation_name="scheduled transfer",
+        terminal_statuses={"POSTED", "FAILED"},
+    )
 
 
 @pytest.mark.invariant

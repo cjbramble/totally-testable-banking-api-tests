@@ -1,7 +1,7 @@
 """Withdrawal idempotency tests proving one terminal debit and activity record."""
 
 from decimal import Decimal
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 
@@ -10,33 +10,11 @@ from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
 
 
-def _fund_account_and_wait_for_settlement(
-    banking_api_client: BankingApiClient,
-    *,
-    account_id: UUID,
-    access_token: str,
-) -> None:
-    """Create and settle the funding required by one withdrawal scenario."""
-
-    funding = banking_api_client.create_deposit(
-        destination_account_id=account_id,
-        amount="100.00",
-        access_token=access_token,
-        idempotency_key=f"deposit-{uuid4()}",
-    )
-    wait_for_settlement(
-        lambda: banking_api_client.get_deposit(
-            instruction_id=funding.id,
-            access_token=access_token,
-        ),
-        operation_name="funding deposit",
-    )
-
-
 @pytest.mark.invariant
 def test_replayed_withdrawal_has_one_identity_and_one_financial_effect(
     banking_api_client: BankingApiClient,
     registered_user,
+    settled_deposit_factory,
 ) -> None:
     token = banking_api_client.login(
         email=registered_user.email,
@@ -44,9 +22,8 @@ def test_replayed_withdrawal_has_one_identity_and_one_financial_effect(
     )
     account = banking_api_client.list_accounts(access_token=token.access_token)[0]
 
-    _fund_account_and_wait_for_settlement(
-        banking_api_client,
-        account_id=account.id,
+    settled_deposit_factory(
+        destination_account_id=account.id,
         access_token=token.access_token,
     )
 
@@ -104,15 +81,15 @@ def test_replayed_withdrawal_has_one_identity_and_one_financial_effect(
 def test_changed_withdrawal_payload_with_reused_key_is_rejected_without_additional_effect(
     banking_api_client: BankingApiClient,
     registered_user,
+    settled_deposit_factory,
 ) -> None:
     token = banking_api_client.login(
         email=registered_user.email,
         password=registered_user.password,
     )
     account = banking_api_client.list_accounts(access_token=token.access_token)[0]
-    _fund_account_and_wait_for_settlement(
-        banking_api_client,
-        account_id=account.id,
+    settled_deposit_factory(
+        destination_account_id=account.id,
         access_token=token.access_token,
     )
 
@@ -176,6 +153,7 @@ def test_two_users_can_use_the_same_withdrawal_key_independently(
     banking_api_client: BankingApiClient,
     registered_user,
     registered_user_factory,
+    settled_deposit_factory,
 ) -> None:
     first_token = banking_api_client.login(
         email=registered_user.email,
@@ -194,14 +172,12 @@ def test_two_users_can_use_the_same_withdrawal_key_independently(
         access_token=second_token.access_token,
     )[0]
 
-    _fund_account_and_wait_for_settlement(
-        banking_api_client,
-        account_id=first_account.id,
+    settled_deposit_factory(
+        destination_account_id=first_account.id,
         access_token=first_token.access_token,
     )
-    _fund_account_and_wait_for_settlement(
-        banking_api_client,
-        account_id=second_account.id,
+    settled_deposit_factory(
+        destination_account_id=second_account.id,
         access_token=second_token.access_token,
     )
 

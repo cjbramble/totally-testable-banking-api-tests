@@ -31,9 +31,9 @@ class _AuthenticatedAccounts:
 
 def _register_authenticated_user(
     banking_api_client: BankingApiClient,
-    registered_user_factory,
+    register_user,
 ) -> _AuthenticatedAccounts:
-    user = registered_user_factory(display_name="Other Test User")
+    user = register_user(display_name="Other Test User")
     token = banking_api_client.login(email=user.email, password=user.password)
     accounts = banking_api_client.list_accounts(access_token=token.access_token)
     return _AuthenticatedAccounts(
@@ -451,9 +451,9 @@ def test_own_account_transfer_rejects_same_source_and_destination(
 def test_own_account_transfer_rejects_foreign_destination(
     banking_api_client: BankingApiClient,
     funded_account,
-    registered_user_factory,
+    register_user,
 ) -> None:
-    other_user = _register_authenticated_user(banking_api_client, registered_user_factory)
+    other_user = _register_authenticated_user(banking_api_client, register_user)
     other_savings_before = other_user.savings
     owner_checking_before = banking_api_client.get_account(
         account_id=funded_account.account.id,
@@ -525,9 +525,9 @@ def test_own_account_transfer_rejects_foreign_destination(
 def test_own_account_transfer_rejects_foreign_source(
     banking_api_client: BankingApiClient,
     funded_account,
-    registered_user_factory,
+    register_user,
 ) -> None:
-    other_user = _register_authenticated_user(banking_api_client, registered_user_factory)
+    other_user = _register_authenticated_user(banking_api_client, register_user)
     owner_checking_before = banking_api_client.get_account(
         account_id=funded_account.account.id,
         access_token=funded_account.access_token,

@@ -1,4 +1,4 @@
-"""Callable factories for isolated users and settled banking operations."""
+"""Reusable setup actions performed through the banking API."""
 
 from uuid import UUID, uuid4
 
@@ -8,7 +8,7 @@ from totally_testable_banking_api_tests.operation_polling import wait_for_settle
 from totally_testable_banking_api_tests.test_data import RegisteredUser
 
 
-class RegisteredUserFactory:
+class UserRegistrar:
     """Create isolated registered users through the normal product API."""
 
     def __init__(self, banking_api_client: BankingApiClient) -> None:
@@ -26,7 +26,7 @@ class RegisteredUserFactory:
         return RegisteredUser(user=user, email=email, password=password)
 
 
-class SettledDepositFactory:
+class SettledDepositCreator:
     """Create deposits through the product API and await settlement."""
 
     def __init__(self, banking_api_client: BankingApiClient) -> None:

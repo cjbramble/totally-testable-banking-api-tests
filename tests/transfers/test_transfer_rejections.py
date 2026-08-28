@@ -7,11 +7,11 @@ import pytest
 from totally_testable_banking_api_tests.account_selection import get_account_by_type
 from totally_testable_banking_api_tests.api_models import ProductAccountType
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
-from totally_testable_banking_api_tests.factories import (
-    RegisteredUserFactory,
-    SettledDepositFactory,
-)
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
+from totally_testable_banking_api_tests.setup_actions import (
+    SettledDepositCreator,
+    UserRegistrar,
+)
 from totally_testable_banking_api_tests.test_data import RegisteredUser
 
 
@@ -32,7 +32,7 @@ from totally_testable_banking_api_tests.test_data import RegisteredUser
 def test_invalid_amount_transfer_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
-    registered_user_factory: RegisteredUserFactory,
+    register_user: UserRegistrar,
     amount: str,
     expected_error_code: str,
 ) -> None:
@@ -47,7 +47,7 @@ def test_invalid_amount_transfer_is_rejected_without_financial_effect(
         ProductAccountType.CHECKING,
     )
 
-    recipient = registered_user_factory(display_name="Recipient Test User")
+    recipient = register_user(display_name="Recipient Test User")
     recipient_token = banking_api_client.login(
         email=recipient.email,
         password=recipient.password,
@@ -125,7 +125,7 @@ def test_invalid_amount_transfer_is_rejected_without_financial_effect(
 def test_invalid_idempotency_key_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
-    registered_user_factory: RegisteredUserFactory,
+    register_user: UserRegistrar,
     idempotency_key: str | None,
     expected_error_code: str,
 ) -> None:
@@ -140,7 +140,7 @@ def test_invalid_idempotency_key_is_rejected_without_financial_effect(
         ProductAccountType.CHECKING,
     )
 
-    recipient = registered_user_factory(display_name="Recipient Test User")
+    recipient = register_user(display_name="Recipient Test User")
     recipient_token = banking_api_client.login(
         email=recipient.email,
         password=recipient.password,
@@ -209,8 +209,8 @@ def test_invalid_idempotency_key_is_rejected_without_financial_effect(
 def test_foreign_source_account_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
-    registered_user_factory: RegisteredUserFactory,
-    create_settled_deposit: SettledDepositFactory,
+    register_user: UserRegistrar,
+    create_settled_deposit: SettledDepositCreator,
 ) -> None:
     owner_token = banking_api_client.login(
         email=registered_user.email,
@@ -228,7 +228,7 @@ def test_foreign_source_account_is_rejected_without_financial_effect(
         access_token=owner_token.access_token,
     )
 
-    actor = registered_user_factory(display_name="Actor Test User")
+    actor = register_user(display_name="Actor Test User")
     actor_token = banking_api_client.login(
         email=actor.email,
         password=actor.password,
@@ -306,7 +306,7 @@ def test_foreign_source_account_is_rejected_without_financial_effect(
 def test_unknown_destination_account_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
-    create_settled_deposit: SettledDepositFactory,
+    create_settled_deposit: SettledDepositCreator,
 ) -> None:
     sender_token = banking_api_client.login(
         email=registered_user.email,
@@ -367,7 +367,7 @@ def test_unknown_destination_account_is_rejected_without_financial_effect(
 def test_self_transfer_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
-    create_settled_deposit: SettledDepositFactory,
+    create_settled_deposit: SettledDepositCreator,
 ) -> None:
     token = banking_api_client.login(
         email=registered_user.email,
@@ -426,8 +426,8 @@ def test_self_transfer_is_rejected_without_financial_effect(
 def test_transfer_exceeding_available_balance_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
-    registered_user_factory: RegisteredUserFactory,
-    create_settled_deposit: SettledDepositFactory,
+    register_user: UserRegistrar,
+    create_settled_deposit: SettledDepositCreator,
 ) -> None:
     sender_token = banking_api_client.login(
         email=registered_user.email,
@@ -445,7 +445,7 @@ def test_transfer_exceeding_available_balance_is_rejected_without_financial_effe
         amount="10.00",
     )
 
-    recipient = registered_user_factory(display_name="Recipient Test User")
+    recipient = register_user(display_name="Recipient Test User")
     recipient_token = banking_api_client.login(
         email=recipient.email,
         password=recipient.password,
@@ -523,7 +523,7 @@ def test_transfer_exceeding_available_balance_is_rejected_without_financial_effe
 def test_transfer_missing_destination_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
-    create_settled_deposit: SettledDepositFactory,
+    create_settled_deposit: SettledDepositCreator,
 ) -> None:
     sender_token = banking_api_client.login(
         email=registered_user.email,

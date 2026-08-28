@@ -10,9 +10,9 @@ from totally_testable_banking_api_tests.api_models import (
     ActivityKind,
 )
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
-from totally_testable_banking_api_tests.factories import RegisteredUserFactory
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
+from totally_testable_banking_api_tests.setup_actions import UserRegistrar
 from totally_testable_banking_api_tests.test_data import FundedAccount
 
 
@@ -63,7 +63,7 @@ def test_created_withdrawal_can_be_retrieved_by_its_owner(
 def test_outsider_cannot_retrieve_another_users_withdrawal(
     banking_api_client: BankingApiClient,
     funded_account: FundedAccount,
-    registered_user_factory: RegisteredUserFactory,
+    register_user: UserRegistrar,
 ) -> None:
     withdrawal = banking_api_client.create_withdrawal(
         source_account_id=funded_account.account.id,
@@ -72,7 +72,7 @@ def test_outsider_cannot_retrieve_another_users_withdrawal(
         idempotency_key=f"withdrawal-{uuid4()}",
     )
 
-    outsider = registered_user_factory(display_name="Outsider Test User")
+    outsider = register_user(display_name="Outsider Test User")
     outsider_token = banking_api_client.login(
         email=outsider.email,
         password=outsider.password,

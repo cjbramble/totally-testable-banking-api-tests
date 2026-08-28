@@ -6,12 +6,12 @@ import pytest
 
 from totally_testable_banking_api_tests.api_models import ProductAccountType
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
-from totally_testable_banking_api_tests.factories import (
-    RegisteredUserFactory,
-    SettledDepositFactory,
-)
 from totally_testable_banking_api_tests.http_client import ApiClient
 from totally_testable_banking_api_tests.settings import load_settings
+from totally_testable_banking_api_tests.setup_actions import (
+    SettledDepositCreator,
+    UserRegistrar,
+)
 from totally_testable_banking_api_tests.test_data import FundedAccount, RegisteredUser
 
 
@@ -32,37 +32,37 @@ def banking_api_client() -> Iterator[BankingApiClient]:
 
 
 @pytest.fixture
-def registered_user_factory(
+def register_user(
     banking_api_client: BankingApiClient,
-) -> RegisteredUserFactory:
-    """Provide a function-scoped factory for isolated registered users."""
+) -> UserRegistrar:
+    """Provide a callable that registers isolated users through the API."""
 
-    return RegisteredUserFactory(banking_api_client)
+    return UserRegistrar(banking_api_client)
 
 
 @pytest.fixture
 def registered_user(
-    registered_user_factory: RegisteredUserFactory,
+    register_user: UserRegistrar,
 ) -> RegisteredUser:
     """Register one uniquely named user through the normal product API."""
 
-    return registered_user_factory()
+    return register_user()
 
 
 @pytest.fixture
 def create_settled_deposit(
     banking_api_client: BankingApiClient,
-) -> SettledDepositFactory:
+) -> SettledDepositCreator:
     """Provide a callable that creates a deposit and waits for settlement."""
 
-    return SettledDepositFactory(banking_api_client)
+    return SettledDepositCreator(banking_api_client)
 
 
 @pytest.fixture
 def funded_account(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
-    create_settled_deposit: SettledDepositFactory,
+    create_settled_deposit: SettledDepositCreator,
 ) -> FundedAccount:
     """Fund one unique user's checking account through normal product routes."""
 

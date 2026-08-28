@@ -13,12 +13,12 @@ from totally_testable_banking_api_tests.api_models import (
     ProductAccountType,
 )
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
-from totally_testable_banking_api_tests.factories import (
-    RegisteredUserFactory,
-    SettledDepositFactory,
-)
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
+from totally_testable_banking_api_tests.setup_actions import (
+    SettledDepositCreator,
+    UserRegistrar,
+)
 from totally_testable_banking_api_tests.test_data import RegisteredUser
 
 
@@ -32,7 +32,7 @@ class _FundedActivityUser:
 
 def _create_funded_activity_user(
     banking_api_client: BankingApiClient,
-    create_settled_deposit: SettledDepositFactory,
+    create_settled_deposit: SettledDepositCreator,
     *,
     email: str,
     password: str,
@@ -61,8 +61,8 @@ def _create_funded_activity_user(
 def test_transfer_appears_as_sent_and_received_activity(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
-    registered_user_factory: RegisteredUserFactory,
-    create_settled_deposit: SettledDepositFactory,
+    register_user: UserRegistrar,
+    create_settled_deposit: SettledDepositCreator,
 ) -> None:
     sender_token = banking_api_client.login(
         email=registered_user.email,
@@ -75,7 +75,7 @@ def test_transfer_appears_as_sent_and_received_activity(
         ProductAccountType.CHECKING,
     )
 
-    recipient = registered_user_factory(display_name="Recipient Test User")
+    recipient = register_user(display_name="Recipient Test User")
     recipient_token = banking_api_client.login(
         email=recipient.email,
         password=recipient.password,
@@ -133,7 +133,7 @@ def test_transfer_appears_as_sent_and_received_activity(
 def test_activity_page_boundaries_return_expected_operations_without_cursor(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
-    create_settled_deposit: SettledDepositFactory,
+    create_settled_deposit: SettledDepositCreator,
 ) -> None:
     activity_user = _create_funded_activity_user(
         banking_api_client,
@@ -176,7 +176,7 @@ def test_activity_page_boundaries_return_expected_operations_without_cursor(
 def test_activity_cursor_traversal_has_no_duplicate_or_missing_operations(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
-    create_settled_deposit: SettledDepositFactory,
+    create_settled_deposit: SettledDepositCreator,
 ) -> None:
     activity_user = _create_funded_activity_user(
         banking_api_client,
@@ -229,7 +229,7 @@ def test_activity_cursor_traversal_has_no_duplicate_or_missing_operations(
 def test_activity_cursor_remains_stable_when_newer_operation_is_inserted(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
-    create_settled_deposit: SettledDepositFactory,
+    create_settled_deposit: SettledDepositCreator,
 ) -> None:
     activity_user = _create_funded_activity_user(
         banking_api_client,
@@ -320,7 +320,7 @@ def test_malformed_activity_cursor_is_rejected(
 def test_altered_activity_cursor_is_rejected(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
-    create_settled_deposit: SettledDepositFactory,
+    create_settled_deposit: SettledDepositCreator,
 ) -> None:
     activity_user = _create_funded_activity_user(
         banking_api_client,
@@ -362,10 +362,10 @@ def test_altered_activity_cursor_is_rejected(
 def test_activity_cursor_from_another_user_does_not_expose_owner_activity(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
-    registered_user_factory: RegisteredUserFactory,
-    create_settled_deposit: SettledDepositFactory,
+    register_user: UserRegistrar,
+    create_settled_deposit: SettledDepositCreator,
 ) -> None:
-    other = registered_user_factory(display_name="Other Test User")
+    other = register_user(display_name="Other Test User")
     other_user = _create_funded_activity_user(
         banking_api_client,
         create_settled_deposit,
@@ -459,8 +459,8 @@ def test_activity_limit_rejects_values_outside_documented_range(
 def test_mixed_activity_cursor_traversal_preserves_identity_and_order(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
-    registered_user_factory: RegisteredUserFactory,
-    create_settled_deposit: SettledDepositFactory,
+    register_user: UserRegistrar,
+    create_settled_deposit: SettledDepositCreator,
 ) -> None:
     activity_user = _create_funded_activity_user(
         banking_api_client,
@@ -468,7 +468,7 @@ def test_mixed_activity_cursor_traversal_preserves_identity_and_order(
         email=registered_user.email,
         password=registered_user.password,
     )
-    recipient = registered_user_factory(display_name="Recipient Test User")
+    recipient = register_user(display_name="Recipient Test User")
     recipient_token = banking_api_client.login(
         email=recipient.email,
         password=recipient.password,

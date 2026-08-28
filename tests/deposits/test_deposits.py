@@ -11,9 +11,9 @@ from totally_testable_banking_api_tests.api_models import (
     ProductAccountType,
 )
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
-from totally_testable_banking_api_tests.factories import RegisteredUserFactory
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
+from totally_testable_banking_api_tests.setup_actions import UserRegistrar
 from totally_testable_banking_api_tests.test_data import RegisteredUser
 
 
@@ -81,7 +81,7 @@ def test_created_deposit_can_be_retrieved_by_its_owner(
 def test_outsider_cannot_retrieve_another_users_deposit(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
-    registered_user_factory: RegisteredUserFactory,
+    register_user: UserRegistrar,
 ) -> None:
     owner_token = banking_api_client.login(
         email=registered_user.email,
@@ -100,7 +100,7 @@ def test_outsider_cannot_retrieve_another_users_deposit(
         idempotency_key=f"deposit-{uuid4()}",
     )
 
-    outsider = registered_user_factory(display_name="Outsider Test User")
+    outsider = register_user(display_name="Outsider Test User")
     outsider_token = banking_api_client.login(
         email=outsider.email,
         password=outsider.password,

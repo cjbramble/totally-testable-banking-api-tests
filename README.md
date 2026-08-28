@@ -9,7 +9,8 @@ The repository expects:
 - [uv](https://docs.astral.sh/uv/) with access to Python 3.13;
 - the sibling `totally-testable-banking` repository at
   `../totally-testable-banking`;
-- Docker Engine or Docker Desktop with the Docker CLI, Compose, and Buildx for hermetic runs.
+- Docker Engine or Docker Desktop with the Docker CLI, Compose, and Buildx available on `PATH`
+  for live worker-control and hermetic runs.
 
 Verify the external tools from the API-test repository root:
 

@@ -116,7 +116,7 @@ On 2026-08-28, `./scripts/run-hermetic.sh --test` passed against a fresh, isolat
 | Dedicated concurrency suite | 3 passed |
 | Compose teardown | No run containers, network, or volumes remained |
 
-Run `ttb-api-tests-20260828035126-89323` produced separately named `smoke.xml`, `serial.xml`,
+Run `ttb-api-tests-20260828045159-46707` produced separately named `smoke.xml`, `serial.xml`,
 `parallel.xml`, and `concurrency.xml` reports. Each JUnit suite name includes both its execution
 phase and the unique run ID. Genuine failed run `ttb-api-tests-20260827040309-79386` identified the
 failed test and its `6.00` versus `25.00` assertion, captured Compose status and logs, and left no

@@ -13,8 +13,13 @@ from totally_testable_banking_api_tests.api_models import (
     ProductAccountType,
 )
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
+from totally_testable_banking_api_tests.factories import (
+    RegisteredUserFactory,
+    SettledDepositFactory,
+)
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
+from totally_testable_banking_api_tests.test_data import RegisteredUser
 
 
 @dataclass(frozen=True)
@@ -27,7 +32,7 @@ class _FundedActivityUser:
 
 def _create_funded_activity_user(
     banking_api_client: BankingApiClient,
-    create_settled_deposit,
+    create_settled_deposit: SettledDepositFactory,
     *,
     email: str,
     password: str,
@@ -55,9 +60,9 @@ def _create_funded_activity_user(
 @pytest.mark.invariant
 def test_transfer_appears_as_sent_and_received_activity(
     banking_api_client: BankingApiClient,
-    registered_user,
-    registered_user_factory,
-    create_settled_deposit,
+    registered_user: RegisteredUser,
+    registered_user_factory: RegisteredUserFactory,
+    create_settled_deposit: SettledDepositFactory,
 ) -> None:
     sender_token = banking_api_client.login(
         email=registered_user.email,
@@ -127,8 +132,8 @@ def test_transfer_appears_as_sent_and_received_activity(
 @pytest.mark.invariant
 def test_activity_page_boundaries_return_expected_operations_without_cursor(
     banking_api_client: BankingApiClient,
-    registered_user,
-    create_settled_deposit,
+    registered_user: RegisteredUser,
+    create_settled_deposit: SettledDepositFactory,
 ) -> None:
     activity_user = _create_funded_activity_user(
         banking_api_client,
@@ -170,8 +175,8 @@ def test_activity_page_boundaries_return_expected_operations_without_cursor(
 @pytest.mark.invariant
 def test_activity_cursor_traversal_has_no_duplicate_or_missing_operations(
     banking_api_client: BankingApiClient,
-    registered_user,
-    create_settled_deposit,
+    registered_user: RegisteredUser,
+    create_settled_deposit: SettledDepositFactory,
 ) -> None:
     activity_user = _create_funded_activity_user(
         banking_api_client,
@@ -223,8 +228,8 @@ def test_activity_cursor_traversal_has_no_duplicate_or_missing_operations(
 @pytest.mark.invariant
 def test_activity_cursor_remains_stable_when_newer_operation_is_inserted(
     banking_api_client: BankingApiClient,
-    registered_user,
-    create_settled_deposit,
+    registered_user: RegisteredUser,
+    create_settled_deposit: SettledDepositFactory,
 ) -> None:
     activity_user = _create_funded_activity_user(
         banking_api_client,
@@ -292,7 +297,7 @@ def test_activity_cursor_remains_stable_when_newer_operation_is_inserted(
 @pytest.mark.negative
 def test_malformed_activity_cursor_is_rejected(
     banking_api_client: BankingApiClient,
-    registered_user,
+    registered_user: RegisteredUser,
 ) -> None:
     token = banking_api_client.login(
         email=registered_user.email,
@@ -314,8 +319,8 @@ def test_malformed_activity_cursor_is_rejected(
 @pytest.mark.negative
 def test_altered_activity_cursor_is_rejected(
     banking_api_client: BankingApiClient,
-    registered_user,
-    create_settled_deposit,
+    registered_user: RegisteredUser,
+    create_settled_deposit: SettledDepositFactory,
 ) -> None:
     activity_user = _create_funded_activity_user(
         banking_api_client,
@@ -356,9 +361,9 @@ def test_altered_activity_cursor_is_rejected(
 @pytest.mark.invariant
 def test_activity_cursor_from_another_user_does_not_expose_owner_activity(
     banking_api_client: BankingApiClient,
-    registered_user,
-    registered_user_factory,
-    create_settled_deposit,
+    registered_user: RegisteredUser,
+    registered_user_factory: RegisteredUserFactory,
+    create_settled_deposit: SettledDepositFactory,
 ) -> None:
     other = registered_user_factory(display_name="Other Test User")
     other_user = _create_funded_activity_user(
@@ -405,7 +410,7 @@ def test_activity_cursor_from_another_user_does_not_expose_owner_activity(
 )
 def test_activity_limit_accepts_documented_boundaries(
     banking_api_client: BankingApiClient,
-    registered_user,
+    registered_user: RegisteredUser,
     limit: int,
 ) -> None:
     token = banking_api_client.login(
@@ -430,7 +435,7 @@ def test_activity_limit_accepts_documented_boundaries(
 )
 def test_activity_limit_rejects_values_outside_documented_range(
     banking_api_client: BankingApiClient,
-    registered_user,
+    registered_user: RegisteredUser,
     limit: int,
 ) -> None:
     token = banking_api_client.login(
@@ -453,9 +458,9 @@ def test_activity_limit_rejects_values_outside_documented_range(
 @pytest.mark.invariant
 def test_mixed_activity_cursor_traversal_preserves_identity_and_order(
     banking_api_client: BankingApiClient,
-    registered_user,
-    registered_user_factory,
-    create_settled_deposit,
+    registered_user: RegisteredUser,
+    registered_user_factory: RegisteredUserFactory,
+    create_settled_deposit: SettledDepositFactory,
 ) -> None:
     activity_user = _create_funded_activity_user(
         banking_api_client,

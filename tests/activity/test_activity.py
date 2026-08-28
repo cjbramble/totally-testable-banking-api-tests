@@ -1,15 +1,10 @@
 """Activity projection and keyset pagination tests."""
 
-from dataclasses import dataclass
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 
-from totally_testable_banking_api_tests.api_models import (
-    AccountResponse,
-    ActivityDirection,
-    ActivityKind,
-)
+from totally_testable_banking_api_tests.api_models import ActivityDirection, ActivityKind
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
@@ -18,33 +13,10 @@ from totally_testable_banking_api_tests.setup_actions import (
     UserAuthenticator,
     UserRegistrar,
 )
-from totally_testable_banking_api_tests.test_data import RegisteredUser
-
-
-@dataclass(frozen=True)
-class _FundedActivityUser:
-    access_token: str
-    checking: AccountResponse
-    savings: AccountResponse
-    deposit_id: UUID
-
-
-def _create_funded_activity_user(
-    authenticate_user: UserAuthenticator,
-    create_settled_deposit: SettledDepositCreator,
-    registered_user: RegisteredUser,
-) -> _FundedActivityUser:
-    authenticated = authenticate_user(registered_user)
-    deposit = create_settled_deposit(
-        destination_account_id=authenticated.checking.id,
-        access_token=authenticated.access_token,
-    )
-    return _FundedActivityUser(
-        access_token=authenticated.access_token,
-        checking=authenticated.checking,
-        savings=authenticated.savings,
-        deposit_id=deposit.id,
-    )
+from totally_testable_banking_api_tests.test_data import (
+    ActivityUserFunder,
+    RegisteredUser,
+)
 
 
 @pytest.mark.invariant
@@ -106,14 +78,9 @@ def test_transfer_appears_as_sent_and_received_activity(
 def test_activity_page_boundaries_return_expected_operations_without_cursor(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
-    authenticate_user: UserAuthenticator,
-    create_settled_deposit: SettledDepositCreator,
+    fund_activity_user: ActivityUserFunder,
 ) -> None:
-    activity_user = _create_funded_activity_user(
-        authenticate_user,
-        create_settled_deposit,
-        registered_user,
-    )
+    activity_user = fund_activity_user(registered_user)
     account_transfer = banking_api_client.create_account_transfer(
         source_account_id=activity_user.checking.id,
         destination_account_id=activity_user.savings.id,
@@ -149,14 +116,9 @@ def test_activity_page_boundaries_return_expected_operations_without_cursor(
 def test_activity_cursor_traversal_has_no_duplicate_or_missing_operations(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
-    authenticate_user: UserAuthenticator,
-    create_settled_deposit: SettledDepositCreator,
+    fund_activity_user: ActivityUserFunder,
 ) -> None:
-    activity_user = _create_funded_activity_user(
-        authenticate_user,
-        create_settled_deposit,
-        registered_user,
-    )
+    activity_user = fund_activity_user(registered_user)
     first_transfer = banking_api_client.create_account_transfer(
         source_account_id=activity_user.checking.id,
         destination_account_id=activity_user.savings.id,
@@ -202,14 +164,9 @@ def test_activity_cursor_traversal_has_no_duplicate_or_missing_operations(
 def test_activity_cursor_remains_stable_when_newer_operation_is_inserted(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
-    authenticate_user: UserAuthenticator,
-    create_settled_deposit: SettledDepositCreator,
+    fund_activity_user: ActivityUserFunder,
 ) -> None:
-    activity_user = _create_funded_activity_user(
-        authenticate_user,
-        create_settled_deposit,
-        registered_user,
-    )
+    activity_user = fund_activity_user(registered_user)
     first_transfer = banking_api_client.create_account_transfer(
         source_account_id=activity_user.checking.id,
         destination_account_id=activity_user.savings.id,
@@ -292,14 +249,9 @@ def test_malformed_activity_cursor_is_rejected(
 def test_altered_activity_cursor_is_rejected(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
-    authenticate_user: UserAuthenticator,
-    create_settled_deposit: SettledDepositCreator,
+    fund_activity_user: ActivityUserFunder,
 ) -> None:
-    activity_user = _create_funded_activity_user(
-        authenticate_user,
-        create_settled_deposit,
-        registered_user,
-    )
+    activity_user = fund_activity_user(registered_user)
     banking_api_client.create_account_transfer(
         source_account_id=activity_user.checking.id,
         destination_account_id=activity_user.savings.id,
@@ -334,20 +286,11 @@ def test_activity_cursor_from_another_user_does_not_expose_owner_activity(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
     register_user: UserRegistrar,
-    authenticate_user: UserAuthenticator,
-    create_settled_deposit: SettledDepositCreator,
+    fund_activity_user: ActivityUserFunder,
 ) -> None:
     other = register_user(display_name="Other Test User")
-    other_user = _create_funded_activity_user(
-        authenticate_user,
-        create_settled_deposit,
-        other,
-    )
-    cursor_owner = _create_funded_activity_user(
-        authenticate_user,
-        create_settled_deposit,
-        registered_user,
-    )
+    other_user = fund_activity_user(other)
+    cursor_owner = fund_activity_user(registered_user)
     owner_transfer = banking_api_client.create_account_transfer(
         source_account_id=cursor_owner.checking.id,
         destination_account_id=cursor_owner.savings.id,
@@ -430,13 +373,9 @@ def test_mixed_activity_cursor_traversal_preserves_identity_and_order(
     registered_user: RegisteredUser,
     register_user: UserRegistrar,
     authenticate_user: UserAuthenticator,
-    create_settled_deposit: SettledDepositCreator,
+    fund_activity_user: ActivityUserFunder,
 ) -> None:
-    activity_user = _create_funded_activity_user(
-        authenticate_user,
-        create_settled_deposit,
-        registered_user,
-    )
+    activity_user = fund_activity_user(registered_user)
     recipient = authenticate_user(
         register_user(display_name="Recipient Test User"),
     )

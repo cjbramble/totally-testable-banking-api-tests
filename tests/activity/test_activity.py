@@ -39,12 +39,8 @@ def _create_funded_activity_user(
 ) -> _FundedActivityUser:
     token = banking_api_client.login(email=email, password=password)
     accounts = banking_api_client.list_accounts(access_token=token.access_token)
-    checking = next(
-        account for account in accounts if account.account_type is ProductAccountType.CHECKING
-    )
-    savings = next(
-        account for account in accounts if account.account_type is ProductAccountType.SAVINGS
-    )
+    checking = get_account_by_type(accounts, ProductAccountType.CHECKING)
+    savings = get_account_by_type(accounts, ProductAccountType.SAVINGS)
     deposit = create_settled_deposit(
         destination_account_id=checking.id,
         access_token=token.access_token,
@@ -476,10 +472,9 @@ def test_mixed_activity_cursor_traversal_preserves_identity_and_order(
     recipient_accounts = banking_api_client.list_accounts(
         access_token=recipient_token.access_token,
     )
-    recipient_checking = next(
-        account
-        for account in recipient_accounts
-        if account.account_type is ProductAccountType.CHECKING
+    recipient_checking = get_account_by_type(
+        recipient_accounts,
+        ProductAccountType.CHECKING,
     )
     transfer = banking_api_client.create_transfer(
         source_account_id=activity_user.checking.id,

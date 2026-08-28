@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from totally_testable_banking_api_tests.account_selection import get_account_by_type
 from totally_testable_banking_api_tests.api_models import (
     AccountResponse,
     ActivityDirection,
@@ -35,12 +36,9 @@ def _register_checking_account(
 ) -> _AuthenticatedCheckingAccount:
     user = register_user(display_name="Recipient Test User")
     token = banking_api_client.login(email=user.email, password=user.password)
-    account = next(
-        account
-        for account in banking_api_client.list_accounts(
-            access_token=token.access_token,
-        )
-        if account.account_type is ProductAccountType.CHECKING
+    account = get_account_by_type(
+        banking_api_client.list_accounts(access_token=token.access_token),
+        ProductAccountType.CHECKING,
     )
     return _AuthenticatedCheckingAccount(
         access_token=token.access_token,
@@ -76,12 +74,9 @@ def test_concurrent_same_key_account_transfers_have_one_financial_effect(
     banking_api_client: BankingApiClient,
     funded_account: FundedAccount,
 ) -> None:
-    savings_before = next(
-        account
-        for account in banking_api_client.list_accounts(
-            access_token=funded_account.access_token,
-        )
-        if account.account_type is ProductAccountType.SAVINGS
+    savings_before = get_account_by_type(
+        banking_api_client.list_accounts(access_token=funded_account.access_token),
+        ProductAccountType.SAVINGS,
     )
     checking_before = banking_api_client.get_account(
         account_id=funded_account.account.id,

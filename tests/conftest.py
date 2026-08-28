@@ -4,6 +4,7 @@ from collections.abc import Iterator
 
 import pytest
 
+from totally_testable_banking_api_tests.account_selection import get_account_by_type
 from totally_testable_banking_api_tests.api_models import ProductAccountType
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import ApiClient
@@ -70,12 +71,9 @@ def funded_account(
         email=registered_user.email,
         password=registered_user.password,
     )
-    account = next(
-        account
-        for account in banking_api_client.list_accounts(
-            access_token=token.access_token,
-        )
-        if account.account_type is ProductAccountType.CHECKING
+    account = get_account_by_type(
+        banking_api_client.list_accounts(access_token=token.access_token),
+        ProductAccountType.CHECKING,
     )
     create_settled_deposit(
         destination_account_id=account.id,

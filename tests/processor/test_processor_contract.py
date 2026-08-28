@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 
+from totally_testable_banking_api_tests.account_selection import get_account_by_type
 from totally_testable_banking_api_tests.api_models import (
     ActivityDirection,
     ActivityKind,
@@ -35,12 +36,9 @@ def test_declined_deposit_appears_as_failed_activity_without_balance_change(
         email=registered_user.email,
         password=registered_user.password,
     )
-    account = next(
-        account
-        for account in banking_api_client.list_accounts(
-            access_token=token.access_token,
-        )
-        if account.account_type is ProductAccountType.CHECKING
+    account = get_account_by_type(
+        banking_api_client.list_accounts(access_token=token.access_token),
+        ProductAccountType.CHECKING,
     )
     account_before = banking_api_client.get_account(
         account_id=account.id,

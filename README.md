@@ -2,105 +2,145 @@
 
 Independent black-box API automation for the local Totally Testable Banking API.
 
+## Prerequisites
+
+The repository expects:
+
+- [uv](https://docs.astral.sh/uv/) with access to Python 3.13;
+- the sibling `totally-testable-banking` repository at
+  `../totally-testable-banking`;
+- Docker Engine or Docker Desktop with the Docker CLI, Compose, and Buildx available on `PATH`
+  for live worker-control and hermetic runs.
+
+Verify the external tools from the API-test repository root:
+
+```bash
+uv --version
+docker info
+docker compose version
+docker buildx version
+test -f ../totally-testable-banking/compose.yaml
+```
+
+Docker is unnecessary for static checks and automation-unit tests. Live local tests require the
+sibling application stack. Hermetic modes create their own isolated stack and must not target a
+remote service.
+
 ## Setup
 
-Requirements:
-
-- Python 3.13
-- uv
-- a local Totally Testable Banking API
-
-Create the environment:
+Create the locked project environment and install the Git hook:
 
 ```bash
-uv sync
-pre-commit install
+uv sync --frozen
+uv run --frozen pre-commit install
 ```
 
-Create local configuration from the example:
+No virtual-environment activation is required. Project tools are invoked through
+`uv run --frozen`, which resolves them from the project environment without changing
+`uv.lock`.
+
+Create the live-local configuration once:
 
 ```bash
-cp .env.example .env
+test -f .env || cp .env.example .env
 ```
 
-The SUT must be running locally. From the sibling `totally-testable-banking`
-repository:
+Set `PROCESSOR_CONTROL_SECRET` in `.env` to the local simulated processor's configured
+credential. The remaining defaults target the sibling stack:
+
+- banking API: `http://127.0.0.1:8009`;
+- processor control API: `http://127.0.0.1:8011`;
+- Compose file: `../totally-testable-banking/compose.yaml`;
+- request timeout: 10 seconds.
+
+## Verification workflows
+
+### Static checks and automation-unit tests
+
+These commands do not require the banking application:
 
 ```bash
-make up
+uv run --frozen ruff check .
+uv run --frozen ruff format --check .
+uv run --frozen mypy
+uv run --frozen pytest -q -m unit
+uv run --frozen pre-commit run --all-files
 ```
 
-The default API address is `http://127.0.0.1:8009`.
-`SUT_COMPOSE_FILE` identifies the local SUT Compose file used for bounded worker actions and
-defaults to the sibling `totally-testable-banking/compose.yaml`.
-The processor-control address defaults to `http://127.0.0.1:8011`.
-`PROCESSOR_CONTROL_SECRET` must match the credential configured for the local
-simulated processor. It is required at runtime and must not contain a hosted
-or production credential.
+Pre-commit invokes Ruff and mypy through `uv run --frozen`, so committing does not depend on an
+activated virtual environment or direct `ruff` and `mypy` executables on the caller's `PATH`.
 
-## Verification
+### Live local serial tests
 
-Run the focused or complete test suite:
+Start the sibling stack and run the serial diagnostic baseline:
 
 ```bash
-pytest -q
-pytest -q tests/auth
-pytest -q -m smoke
-pytest -q -m unit
-pytest -q -m contract
-pytest -q -m concurrency
-pytest -q -n 2 -m "not concurrency"
+make -C ../totally-testable-banking up
+uv run --frozen pytest -q
 ```
 
-The default complete run remains serial. The `-n 2` command starts two xdist worker processes
-and checks that ordinary tests remain isolated when their execution order overlaps. Deliberate
-concurrency tests run separately because they already synchronize multiple requests within one
-test.
+Useful focused selections include:
 
-Validate hermetic-runner prerequisites without changing Docker state:
+```bash
+uv run --frozen pytest -q tests/auth
+uv run --frozen pytest -q -m smoke
+uv run --frozen pytest -q -m contract
+```
+
+Live tests register unique users and use only local published interfaces. They require the
+`.env` values to match the running sibling stack.
+
+### Live local xdist and controlled concurrency
+
+After the serial suite passes, verify ordinary test isolation with two worker processes, then run
+the deliberately synchronized race tests separately:
+
+```bash
+uv run --frozen pytest -q -n 2 -m "not concurrency"
+uv run --frozen pytest -q -m concurrency
+```
+
+xdist overlaps independent tests across worker processes. The `concurrency` selection instead
+coordinates simultaneous requests inside each test, so it remains a separate serial selection.
+
+### Fresh hermetic execution
+
+The hermetic runner validates Docker CLI, Compose, Buildx, the daemon, required project-environment
+executables, and the sibling Compose path. Preflight is read-only and does not create Docker
+resources:
 
 ```bash
 ./scripts/run-hermetic.sh --preflight
 ```
 
-Build fresh migration images, apply both database schemas, and verify isolated teardown:
+The remaining modes build uniquely named images and use fresh databases, dynamic host ports, and
+guaranteed teardown:
 
 ```bash
 ./scripts/run-hermetic.sh --infrastructure-check
-```
-
-Start the isolated API application stack and verify its readiness through dynamically assigned
-host ports:
-
-```bash
 ./scripts/run-hermetic.sh --application-check
-```
-
-The application check starts the banking API, processor, and their background workers only after
-both fresh databases are migrated. It verifies the banking API and processor readiness endpoints
-from the host, then removes the generated containers, network, volumes, and images.
-
-Run the complete hermetic verification gate:
-
-```bash
-./scripts/run-hermetic.sh --test
-```
-
-Use a focused hermetic test mode when only one execution strategy needs verification:
-
-```bash
 ./scripts/run-hermetic.sh --test-serial
 ./scripts/run-hermetic.sh --test-parallel
 ./scripts/run-hermetic.sh --test-concurrency
+./scripts/run-hermetic.sh --test
 ```
 
-The focused modes run the complete suite serially, ordinary tests with two xdist workers, or the
-deliberate concurrency tests serially, respectively. The comprehensive `--test` mode runs all
-three strategies plus the smoke selection.
+- `--infrastructure-check` builds migration images and applies both fresh schemas.
+- `--application-check` also starts the API, processor, and workers and verifies readiness.
+- Focused test modes run static checks plus one requested execution strategy.
+- `--test` runs static checks, smoke, complete serial, ordinary two-worker, and dedicated
+  concurrency phases.
 
-Every test mode runs Ruff, formatting, and mypy; creates an isolated application stack; and writes
-JUnit XML beneath `artifacts/hermetic/`. The generated Docker resources are removed whether pytest
-passes or fails.
+Every non-preflight mode creates `artifacts/hermetic/<run-id>/` before its first build or static
+step. Major phases write separate logs; pytest phases also write JUnit XML. A failed run records
+the mode, failing phase, exit status, Compose status, and Compose logs when Docker startup has
+begun. Generated processor-control credentials are redacted from text artifacts before exit.
+Docker resources are removed whether the run passes or fails.
+
+Official references: [uv project execution](https://docs.astral.sh/uv/concepts/projects/run/),
+[uv lock and sync behavior](https://docs.astral.sh/uv/concepts/projects/sync/),
+[pre-commit usage](https://pre-commit.com/#usage), and
+[Docker Compose installation](https://docs.docker.com/compose/install/).
 
 ### Verified final gate
 
@@ -116,7 +156,8 @@ On 2026-08-28, `./scripts/run-hermetic.sh --test` passed against a fresh, isolat
 | Dedicated concurrency suite | 3 passed |
 | Compose teardown | No run containers, network, or volumes remained |
 
-Run `ttb-api-tests-20260828045159-46707` produced separately named `smoke.xml`, `serial.xml`,
+Run `ttb-api-tests-20260828062625-7063` produced logs for static checks, builds, migrations,
+application startup, and each pytest phase plus separately named `smoke.xml`, `serial.xml`,
 `parallel.xml`, and `concurrency.xml` reports. Each JUnit suite name includes both its execution
 phase and the unique run ID. Genuine failed run `ttb-api-tests-20260827040309-79386` identified the
 failed test and its `6.00` versus `25.00` assertion, captured Compose status and logs, and left no
@@ -141,15 +182,6 @@ Within a capability directory, files group coherent behavior families. For examp
 entry projection, pagination traversal, and pagination validation are separate modules; transfer
 modules distinguish immediate movement, scheduled lifecycle, rejected requests, concurrency, and
 idempotency scope. File boundaries follow behavior and review ownership rather than a line quota.
-
-Run the static quality checks:
-
-```bash
-ruff check .
-ruff format --check .
-mypy
-pre-commit run --all-files
-```
 
 ## Test boundary
 

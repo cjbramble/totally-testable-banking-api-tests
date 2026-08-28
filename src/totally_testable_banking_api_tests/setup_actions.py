@@ -1,11 +1,24 @@
 """Reusable setup actions performed through the banking API."""
 
+from typing import Protocol
 from uuid import UUID, uuid4
 
-from totally_testable_banking_api_tests.api_models import DepositResponse
+from totally_testable_banking_api_tests.account_selection import get_account_by_type
+from totally_testable_banking_api_tests.api_models import (
+    AccountResponse,
+    DepositResponse,
+    ProductAccountType,
+    TokenResponse,
+)
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
-from totally_testable_banking_api_tests.test_data import RegisteredUser
+from totally_testable_banking_api_tests.test_data import AuthenticatedUser, RegisteredUser
+
+
+class _AuthenticationClient(Protocol):
+    def login(self, *, email: str, password: str) -> TokenResponse: ...
+
+    def list_accounts(self, *, access_token: str) -> list[AccountResponse]: ...
 
 
 class UserRegistrar:
@@ -24,6 +37,26 @@ class UserRegistrar:
             password=password,
         )
         return RegisteredUser(user=user, email=email, password=password)
+
+
+class UserAuthenticator:
+    """Authenticate a registered user and retrieve both product accounts."""
+
+    def __init__(self, banking_api_client: _AuthenticationClient) -> None:
+        self._banking_api_client = banking_api_client
+
+    def __call__(self, registered_user: RegisteredUser) -> AuthenticatedUser:
+        token = self._banking_api_client.login(
+            email=registered_user.email,
+            password=registered_user.password,
+        )
+        accounts = self._banking_api_client.list_accounts(access_token=token.access_token)
+        return AuthenticatedUser(
+            user=registered_user.user,
+            access_token=token.access_token,
+            checking=get_account_by_type(accounts, ProductAccountType.CHECKING),
+            savings=get_account_by_type(accounts, ProductAccountType.SAVINGS),
+        )
 
 
 class SettledDepositCreator:

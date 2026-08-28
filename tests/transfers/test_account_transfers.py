@@ -1,6 +1,5 @@
 """Live own-account transfer lifecycle and financial-invariant tests."""
 
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
@@ -8,8 +7,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from totally_testable_banking_api_tests.account_selection import get_account_by_type
 from totally_testable_banking_api_tests.api_models import (
-    AccountResponse,
     ProductAccountType,
     TransferResponse,
 )
@@ -20,33 +19,8 @@ from totally_testable_banking_api_tests.scheduled_worker_control import (
     ScheduledWorkerCommandError,
     ScheduledWorkerControl,
 )
-from totally_testable_banking_api_tests.setup_actions import UserRegistrar
+from totally_testable_banking_api_tests.setup_actions import UserAuthenticator, UserRegistrar
 from totally_testable_banking_api_tests.test_data import FundedAccount, RegisteredUser
-
-
-@dataclass(frozen=True)
-class _AuthenticatedAccounts:
-    access_token: str
-    checking: AccountResponse
-    savings: AccountResponse
-
-
-def _register_authenticated_user(
-    banking_api_client: BankingApiClient,
-    register_user: UserRegistrar,
-) -> _AuthenticatedAccounts:
-    user = register_user(display_name="Other Test User")
-    token = banking_api_client.login(email=user.email, password=user.password)
-    accounts = banking_api_client.list_accounts(access_token=token.access_token)
-    return _AuthenticatedAccounts(
-        access_token=token.access_token,
-        checking=next(
-            account for account in accounts if account.account_type is ProductAccountType.CHECKING
-        ),
-        savings=next(
-            account for account in accounts if account.account_type is ProductAccountType.SAVINGS
-        ),
-    )
 
 
 def _wait_for_transfer_terminal(
@@ -71,12 +45,9 @@ def test_immediate_checking_to_savings_transfer_moves_exact_amount(
     registered_user: RegisteredUser,
     funded_account: FundedAccount,
 ) -> None:
-    savings_before = next(
-        account
-        for account in banking_api_client.list_accounts(
-            access_token=funded_account.access_token,
-        )
-        if account.account_type is ProductAccountType.SAVINGS
+    savings_before = get_account_by_type(
+        banking_api_client.list_accounts(access_token=funded_account.access_token),
+        ProductAccountType.SAVINGS,
     )
     checking_before = banking_api_client.get_account(
         account_id=funded_account.account.id,
@@ -131,12 +102,9 @@ def test_immediate_savings_to_checking_transfer_moves_exact_amount(
     registered_user: RegisteredUser,
     funded_account: FundedAccount,
 ) -> None:
-    savings = next(
-        account
-        for account in banking_api_client.list_accounts(
-            access_token=funded_account.access_token,
-        )
-        if account.account_type is ProductAccountType.SAVINGS
+    savings = get_account_by_type(
+        banking_api_client.list_accounts(access_token=funded_account.access_token),
+        ProductAccountType.SAVINGS,
     )
     savings_funding = banking_api_client.create_account_transfer(
         source_account_id=funded_account.account.id,
@@ -204,12 +172,9 @@ def test_future_account_transfer_has_no_early_financial_effect(
     registered_user: RegisteredUser,
     funded_account: FundedAccount,
 ) -> None:
-    savings_before = next(
-        account
-        for account in banking_api_client.list_accounts(
-            access_token=funded_account.access_token,
-        )
-        if account.account_type is ProductAccountType.SAVINGS
+    savings_before = get_account_by_type(
+        banking_api_client.list_accounts(access_token=funded_account.access_token),
+        ProductAccountType.SAVINGS,
     )
     checking_before = banking_api_client.get_account(
         account_id=funded_account.account.id,
@@ -266,12 +231,9 @@ def test_scheduled_account_transfer_can_be_canceled_before_execution(
     banking_api_client: BankingApiClient,
     funded_account: FundedAccount,
 ) -> None:
-    savings_before = next(
-        account
-        for account in banking_api_client.list_accounts(
-            access_token=funded_account.access_token,
-        )
-        if account.account_type is ProductAccountType.SAVINGS
+    savings_before = get_account_by_type(
+        banking_api_client.list_accounts(access_token=funded_account.access_token),
+        ProductAccountType.SAVINGS,
     )
     checking_before = banking_api_client.get_account(
         account_id=funded_account.account.id,
@@ -334,12 +296,9 @@ def test_completed_account_transfer_cannot_be_canceled(
     banking_api_client: BankingApiClient,
     funded_account: FundedAccount,
 ) -> None:
-    savings = next(
-        account
-        for account in banking_api_client.list_accounts(
-            access_token=funded_account.access_token,
-        )
-        if account.account_type is ProductAccountType.SAVINGS
+    savings = get_account_by_type(
+        banking_api_client.list_accounts(access_token=funded_account.access_token),
+        ProductAccountType.SAVINGS,
     )
     posted = banking_api_client.create_account_transfer(
         source_account_id=funded_account.account.id,
@@ -378,8 +337,7 @@ def test_completed_account_transfer_cannot_be_canceled(
     error = exc_info.value
 
     assert error.status_code == 409
-    assert error.error is not None
-    assert error.error.error.code == "SCHEDULED_TRANSFER_NOT_CANCELABLE"
+    assert error.error_code == "SCHEDULED_TRANSFER_NOT_CANCELABLE"
     assert retrieved.id == posted.id
     assert retrieved.status == "POSTED"
     assert retrieved.completed_at == posted.completed_at
@@ -434,8 +392,7 @@ def test_own_account_transfer_rejects_same_source_and_destination(
     error = exc_info.value
 
     assert error.status_code == 422
-    assert error.error is not None
-    assert error.error.error.code == "OWN_ACCOUNT_TRANSFER_REQUIRES_DISTINCT_ACCOUNTS"
+    assert error.error_code == "OWN_ACCOUNT_TRANSFER_REQUIRES_DISTINCT_ACCOUNTS"
     assert (
         account_after.settled_balance,
         account_after.available_balance,
@@ -454,8 +411,9 @@ def test_own_account_transfer_rejects_foreign_destination(
     banking_api_client: BankingApiClient,
     funded_account: FundedAccount,
     register_user: UserRegistrar,
+    authenticate_user: UserAuthenticator,
 ) -> None:
-    other_user = _register_authenticated_user(banking_api_client, register_user)
+    other_user = authenticate_user(register_user(display_name="Other Test User"))
     other_savings_before = other_user.savings
     owner_checking_before = banking_api_client.get_account(
         account_id=funded_account.account.id,
@@ -498,8 +456,7 @@ def test_own_account_transfer_rejects_foreign_destination(
     error = exc_info.value
 
     assert error.status_code == 404
-    assert error.error is not None
-    assert error.error.error.code == "ACCOUNT_NOT_FOUND"
+    assert error.error_code == "ACCOUNT_NOT_FOUND"
     assert (
         owner_checking_after.settled_balance,
         owner_checking_after.available_balance,
@@ -528,8 +485,9 @@ def test_own_account_transfer_rejects_foreign_source(
     banking_api_client: BankingApiClient,
     funded_account: FundedAccount,
     register_user: UserRegistrar,
+    authenticate_user: UserAuthenticator,
 ) -> None:
-    other_user = _register_authenticated_user(banking_api_client, register_user)
+    other_user = authenticate_user(register_user(display_name="Other Test User"))
     owner_checking_before = banking_api_client.get_account(
         account_id=funded_account.account.id,
         access_token=funded_account.access_token,
@@ -575,8 +533,7 @@ def test_own_account_transfer_rejects_foreign_source(
     error = exc_info.value
 
     assert error.status_code == 404
-    assert error.error is not None
-    assert error.error.error.code == "ACCOUNT_NOT_FOUND"
+    assert error.error_code == "ACCOUNT_NOT_FOUND"
     assert (
         owner_checking_after.settled_balance,
         owner_checking_after.available_balance,
@@ -611,12 +568,9 @@ def test_scheduled_account_transfer_rejects_non_future_date(
     funded_account: FundedAccount,
     day_offset: int,
 ) -> None:
-    savings_before = next(
-        account
-        for account in banking_api_client.list_accounts(
-            access_token=funded_account.access_token,
-        )
-        if account.account_type is ProductAccountType.SAVINGS
+    savings_before = get_account_by_type(
+        banking_api_client.list_accounts(access_token=funded_account.access_token),
+        ProductAccountType.SAVINGS,
     )
     checking_before = banking_api_client.get_account(
         account_id=funded_account.account.id,
@@ -654,8 +608,7 @@ def test_scheduled_account_transfer_rejects_non_future_date(
     error = exc_info.value
 
     assert error.status_code == 422
-    assert error.error is not None
-    assert error.error.error.code == "SCHEDULED_DATE_MUST_BE_FUTURE"
+    assert error.error_code == "SCHEDULED_DATE_MUST_BE_FUTURE"
     assert (
         checking_after.settled_balance,
         checking_after.available_balance,
@@ -681,12 +634,9 @@ def test_scheduled_account_transfer_posts_on_controlled_banking_date(
     scheduled_worker_control: ScheduledWorkerControl,
     funded_account: FundedAccount,
 ) -> None:
-    savings_before = next(
-        account
-        for account in banking_api_client.list_accounts(
-            access_token=funded_account.access_token,
-        )
-        if account.account_type is ProductAccountType.SAVINGS
+    savings_before = get_account_by_type(
+        banking_api_client.list_accounts(access_token=funded_account.access_token),
+        ProductAccountType.SAVINGS,
     )
     checking_before = banking_api_client.get_account(
         account_id=funded_account.account.id,
@@ -783,12 +733,9 @@ def test_scheduled_account_transfer_fails_when_funds_are_spent_before_execution(
     scheduled_worker_control: ScheduledWorkerControl,
     funded_account: FundedAccount,
 ) -> None:
-    savings = next(
-        account
-        for account in banking_api_client.list_accounts(
-            access_token=funded_account.access_token,
-        )
-        if account.account_type is ProductAccountType.SAVINGS
+    savings = get_account_by_type(
+        banking_api_client.list_accounts(access_token=funded_account.access_token),
+        ProductAccountType.SAVINGS,
     )
     checking = banking_api_client.get_account(
         account_id=funded_account.account.id,

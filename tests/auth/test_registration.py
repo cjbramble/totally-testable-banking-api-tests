@@ -23,8 +23,7 @@ def test_duplicate_email_registration_is_rejected(
 
     error = exc_info.value
     assert error.status_code == 409
-    assert error.error is not None
-    assert error.error.error.code == "EMAIL_ALREADY_REGISTERED"
+    assert error.error_code == "EMAIL_ALREADY_REGISTERED"
 
 
 @pytest.mark.negative
@@ -41,8 +40,7 @@ def test_case_variant_email_registration_is_rejected(
 
     error = exc_info.value
     assert error.status_code == 409
-    assert error.error is not None
-    assert error.error.error.code == "EMAIL_ALREADY_REGISTERED"
+    assert error.error_code == "EMAIL_ALREADY_REGISTERED"
 
 
 @pytest.mark.negative
@@ -58,8 +56,7 @@ def test_short_registration_password_is_rejected(
 
     error = exc_info.value
     assert error.status_code == 422
-    assert error.error is not None
-    assert error.error.error.code == "VALIDATION_ERROR"
+    assert error.error_code == "VALIDATION_ERROR"
 
 
 @pytest.mark.negative
@@ -75,5 +72,4 @@ def test_malformed_registration_email_is_rejected(
 
     error = exc_info.value
     assert error.status_code == 422
-    assert error.error is not None
-    assert error.error.error.code == "VALIDATION_ERROR"
+    assert error.error_code == "VALIDATION_ERROR"

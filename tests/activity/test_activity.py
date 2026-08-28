@@ -5,18 +5,17 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from totally_testable_banking_api_tests.account_selection import get_account_by_type
 from totally_testable_banking_api_tests.api_models import (
     AccountResponse,
     ActivityDirection,
     ActivityKind,
-    ProductAccountType,
 )
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
 from totally_testable_banking_api_tests.setup_actions import (
     SettledDepositCreator,
+    UserAuthenticator,
     UserRegistrar,
 )
 from totally_testable_banking_api_tests.test_data import RegisteredUser
@@ -31,28 +30,19 @@ class _FundedActivityUser:
 
 
 def _create_funded_activity_user(
-    banking_api_client: BankingApiClient,
+    authenticate_user: UserAuthenticator,
     create_settled_deposit: SettledDepositCreator,
-    *,
-    email: str,
-    password: str,
+    registered_user: RegisteredUser,
 ) -> _FundedActivityUser:
-    token = banking_api_client.login(email=email, password=password)
-    accounts = banking_api_client.list_accounts(access_token=token.access_token)
-    checking = next(
-        account for account in accounts if account.account_type is ProductAccountType.CHECKING
-    )
-    savings = next(
-        account for account in accounts if account.account_type is ProductAccountType.SAVINGS
-    )
+    authenticated = authenticate_user(registered_user)
     deposit = create_settled_deposit(
-        destination_account_id=checking.id,
-        access_token=token.access_token,
+        destination_account_id=authenticated.checking.id,
+        access_token=authenticated.access_token,
     )
     return _FundedActivityUser(
-        access_token=token.access_token,
-        checking=checking,
-        savings=savings,
+        access_token=authenticated.access_token,
+        checking=authenticated.checking,
+        savings=authenticated.savings,
         deposit_id=deposit.id,
     )
 
@@ -62,49 +52,32 @@ def test_transfer_appears_as_sent_and_received_activity(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
     register_user: UserRegistrar,
+    authenticate_user: UserAuthenticator,
     create_settled_deposit: SettledDepositCreator,
 ) -> None:
-    sender_token = banking_api_client.login(
-        email=registered_user.email,
-        password=registered_user.password,
-    )
-    sender_account = get_account_by_type(
-        banking_api_client.list_accounts(
-            access_token=sender_token.access_token,
-        ),
-        ProductAccountType.CHECKING,
-    )
-
-    recipient = register_user(display_name="Recipient Test User")
-    recipient_token = banking_api_client.login(
-        email=recipient.email,
-        password=recipient.password,
-    )
-    recipient_account = get_account_by_type(
-        banking_api_client.list_accounts(
-            access_token=recipient_token.access_token,
-        ),
-        ProductAccountType.CHECKING,
+    sender = authenticate_user(registered_user)
+    recipient = authenticate_user(
+        register_user(display_name="Recipient Test User"),
     )
 
     create_settled_deposit(
-        destination_account_id=sender_account.id,
-        access_token=sender_token.access_token,
+        destination_account_id=sender.checking.id,
+        access_token=sender.access_token,
     )
 
     transfer = banking_api_client.create_transfer(
-        source_account_id=sender_account.id,
-        destination_account_id=recipient_account.id,
+        source_account_id=sender.checking.id,
+        destination_account_id=recipient.checking.id,
         amount="25.00",
-        access_token=sender_token.access_token,
+        access_token=sender.access_token,
         idempotency_key=f"transfer-{uuid4()}",
     )
 
     sender_page = banking_api_client.list_activity(
-        access_token=sender_token.access_token,
+        access_token=sender.access_token,
     )
     recipient_page = banking_api_client.list_activity(
-        access_token=recipient_token.access_token,
+        access_token=recipient.access_token,
     )
     sender_matches = [item for item in sender_page.items if item.operation_id == transfer.id]
     recipient_matches = [item for item in recipient_page.items if item.operation_id == transfer.id]
@@ -116,14 +89,14 @@ def test_transfer_appears_as_sent_and_received_activity(
 
     assert sender_activity.kind == ActivityKind.TRANSFER
     assert sender_activity.direction == ActivityDirection.SENT
-    assert sender_activity.account_id == sender_account.id
+    assert sender_activity.account_id == sender.checking.id
     assert sender_activity.amount == "25.00"
     assert sender_activity.currency == "USD"
     assert sender_activity.status == "POSTED"
 
     assert recipient_activity.kind == ActivityKind.TRANSFER
     assert recipient_activity.direction == ActivityDirection.RECEIVED
-    assert recipient_activity.account_id == recipient_account.id
+    assert recipient_activity.account_id == recipient.checking.id
     assert recipient_activity.amount == "25.00"
     assert recipient_activity.currency == "USD"
     assert recipient_activity.status == "POSTED"
@@ -133,13 +106,13 @@ def test_transfer_appears_as_sent_and_received_activity(
 def test_activity_page_boundaries_return_expected_operations_without_cursor(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
+    authenticate_user: UserAuthenticator,
     create_settled_deposit: SettledDepositCreator,
 ) -> None:
     activity_user = _create_funded_activity_user(
-        banking_api_client,
+        authenticate_user,
         create_settled_deposit,
-        email=registered_user.email,
-        password=registered_user.password,
+        registered_user,
     )
     account_transfer = banking_api_client.create_account_transfer(
         source_account_id=activity_user.checking.id,
@@ -176,13 +149,13 @@ def test_activity_page_boundaries_return_expected_operations_without_cursor(
 def test_activity_cursor_traversal_has_no_duplicate_or_missing_operations(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
+    authenticate_user: UserAuthenticator,
     create_settled_deposit: SettledDepositCreator,
 ) -> None:
     activity_user = _create_funded_activity_user(
-        banking_api_client,
+        authenticate_user,
         create_settled_deposit,
-        email=registered_user.email,
-        password=registered_user.password,
+        registered_user,
     )
     first_transfer = banking_api_client.create_account_transfer(
         source_account_id=activity_user.checking.id,
@@ -229,13 +202,13 @@ def test_activity_cursor_traversal_has_no_duplicate_or_missing_operations(
 def test_activity_cursor_remains_stable_when_newer_operation_is_inserted(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
+    authenticate_user: UserAuthenticator,
     create_settled_deposit: SettledDepositCreator,
 ) -> None:
     activity_user = _create_funded_activity_user(
-        banking_api_client,
+        authenticate_user,
         create_settled_deposit,
-        email=registered_user.email,
-        password=registered_user.password,
+        registered_user,
     )
     first_transfer = banking_api_client.create_account_transfer(
         source_account_id=activity_user.checking.id,
@@ -312,21 +285,20 @@ def test_malformed_activity_cursor_is_rejected(
 
     error = exc_info.value
     assert error.status_code == 422
-    assert error.error is not None
-    assert error.error.error.code == "INVALID_CURSOR"
+    assert error.error_code == "INVALID_CURSOR"
 
 
 @pytest.mark.negative
 def test_altered_activity_cursor_is_rejected(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
+    authenticate_user: UserAuthenticator,
     create_settled_deposit: SettledDepositCreator,
 ) -> None:
     activity_user = _create_funded_activity_user(
-        banking_api_client,
+        authenticate_user,
         create_settled_deposit,
-        email=registered_user.email,
-        password=registered_user.password,
+        registered_user,
     )
     banking_api_client.create_account_transfer(
         source_account_id=activity_user.checking.id,
@@ -354,8 +326,7 @@ def test_altered_activity_cursor_is_rejected(
 
     error = exc_info.value
     assert error.status_code == 422
-    assert error.error is not None
-    assert error.error.error.code == "INVALID_CURSOR"
+    assert error.error_code == "INVALID_CURSOR"
 
 
 @pytest.mark.invariant
@@ -363,20 +334,19 @@ def test_activity_cursor_from_another_user_does_not_expose_owner_activity(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
     register_user: UserRegistrar,
+    authenticate_user: UserAuthenticator,
     create_settled_deposit: SettledDepositCreator,
 ) -> None:
     other = register_user(display_name="Other Test User")
     other_user = _create_funded_activity_user(
-        banking_api_client,
+        authenticate_user,
         create_settled_deposit,
-        email=other.email,
-        password=other.password,
+        other,
     )
     cursor_owner = _create_funded_activity_user(
-        banking_api_client,
+        authenticate_user,
         create_settled_deposit,
-        email=registered_user.email,
-        password=registered_user.password,
+        registered_user,
     )
     owner_transfer = banking_api_client.create_account_transfer(
         source_account_id=cursor_owner.checking.id,
@@ -451,8 +421,7 @@ def test_activity_limit_rejects_values_outside_documented_range(
 
     error = exc_info.value
     assert error.status_code == 422
-    assert error.error is not None
-    assert error.error.error.code == "VALIDATION_ERROR"
+    assert error.error_code == "VALIDATION_ERROR"
 
 
 @pytest.mark.invariant
@@ -460,30 +429,20 @@ def test_mixed_activity_cursor_traversal_preserves_identity_and_order(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
     register_user: UserRegistrar,
+    authenticate_user: UserAuthenticator,
     create_settled_deposit: SettledDepositCreator,
 ) -> None:
     activity_user = _create_funded_activity_user(
-        banking_api_client,
+        authenticate_user,
         create_settled_deposit,
-        email=registered_user.email,
-        password=registered_user.password,
+        registered_user,
     )
-    recipient = register_user(display_name="Recipient Test User")
-    recipient_token = banking_api_client.login(
-        email=recipient.email,
-        password=recipient.password,
-    )
-    recipient_accounts = banking_api_client.list_accounts(
-        access_token=recipient_token.access_token,
-    )
-    recipient_checking = next(
-        account
-        for account in recipient_accounts
-        if account.account_type is ProductAccountType.CHECKING
+    recipient = authenticate_user(
+        register_user(display_name="Recipient Test User"),
     )
     transfer = banking_api_client.create_transfer(
         source_account_id=activity_user.checking.id,
-        destination_account_id=recipient_checking.id,
+        destination_account_id=recipient.checking.id,
         amount="20.00",
         access_token=activity_user.access_token,
         idempotency_key=f"transfer-{uuid4()}",

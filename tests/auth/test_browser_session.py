@@ -39,8 +39,7 @@ def test_logout_invalidates_browser_session(
 
     error = exc_info.value
     assert error.status_code == 401
-    assert error.error is not None
-    assert error.error.error.code == "AUTHENTICATION_REQUIRED"
+    assert error.error_code == "AUTHENTICATION_REQUIRED"
 
 
 @pytest.mark.negative
@@ -58,5 +57,4 @@ def test_invalid_csrf_token_is_rejected(
 
     error = exc_info.value
     assert error.status_code == 403
-    assert error.error is not None
-    assert error.error.error.code == "CSRF_VALIDATION_FAILED"
+    assert error.error_code == "CSRF_VALIDATION_FAILED"

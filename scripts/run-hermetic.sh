@@ -100,12 +100,13 @@ run_static_quality_checks() {
 }
 
 redact_artifact_secrets() {
-  "$test_repo_root/.venv/bin/python" - "$artifact_dir" "$PROCESSOR_CONTROL_SECRET" <<'PY'
+  "$test_repo_root/.venv/bin/python" - "$artifact_dir" <<'PY'
+import os
 from pathlib import Path
 import sys
 
 artifact_dir = Path(sys.argv[1])
-secret = sys.argv[2]
+secret = os.environ["PROCESSOR_CONTROL_SECRET"]
 
 for path in artifact_dir.rglob("*"):
     if not path.is_file():
@@ -147,7 +148,12 @@ cleanup() {
     docker image rm "$compose_project-processor-callback-worker" >/dev/null 2>&1 || true
   fi
 
-  redact_artifact_secrets || true
+  if ! redact_artifact_secrets; then
+    printf 'Failed to redact generated credentials from artifacts\n' >&2
+    if [[ "$exit_status" -eq 0 ]]; then
+      exit_status=1
+    fi
+  fi
 
   if [[ "$exit_status" -eq 0 && "$cleanup_status" -ne 0 ]]; then
     exit_status="$cleanup_status"

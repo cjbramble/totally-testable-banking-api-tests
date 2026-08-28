@@ -5,12 +5,10 @@ from uuid import uuid4
 
 import pytest
 
-from totally_testable_banking_api_tests.account_selection import get_account_by_type
-from totally_testable_banking_api_tests.api_models import ProductAccountType
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
-from totally_testable_banking_api_tests.setup_actions import UserRegistrar
+from totally_testable_banking_api_tests.setup_actions import UserAuthenticator, UserRegistrar
 from totally_testable_banking_api_tests.test_data import RegisteredUser
 
 
@@ -18,52 +16,46 @@ from totally_testable_banking_api_tests.test_data import RegisteredUser
 def test_replayed_deposit_has_one_identity_and_one_financial_effect(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
+    authenticate_user: UserAuthenticator,
 ) -> None:
-    token = banking_api_client.login(
-        email=registered_user.email,
-        password=registered_user.password,
-    )
-    account = get_account_by_type(
-        banking_api_client.list_accounts(access_token=token.access_token),
-        ProductAccountType.CHECKING,
-    )
+    authenticated = authenticate_user(registered_user)
     account_before = banking_api_client.get_account(
-        account_id=account.id,
-        access_token=token.access_token,
+        account_id=authenticated.checking.id,
+        access_token=authenticated.access_token,
     )
     activity_before = banking_api_client.list_activity(
-        access_token=token.access_token,
+        access_token=authenticated.access_token,
     ).items
 
     deposit_amount = Decimal("100.00")
     idempotency_key = f"deposit-{uuid4()}"
     first = banking_api_client.create_deposit(
-        destination_account_id=account.id,
+        destination_account_id=authenticated.checking.id,
         amount=str(deposit_amount),
-        access_token=token.access_token,
+        access_token=authenticated.access_token,
         idempotency_key=idempotency_key,
     )
     replay = banking_api_client.create_deposit(
-        destination_account_id=account.id,
+        destination_account_id=authenticated.checking.id,
         amount=str(deposit_amount),
-        access_token=token.access_token,
+        access_token=authenticated.access_token,
         idempotency_key=idempotency_key,
     )
 
     wait_for_settlement(
         lambda: banking_api_client.get_deposit(
             instruction_id=first.id,
-            access_token=token.access_token,
+            access_token=authenticated.access_token,
         ),
         operation_name="deposit",
     )
 
     account_after = banking_api_client.get_account(
-        account_id=account.id,
-        access_token=token.access_token,
+        account_id=authenticated.checking.id,
+        access_token=authenticated.access_token,
     )
     activity_after = banking_api_client.list_activity(
-        access_token=token.access_token,
+        access_token=authenticated.access_token,
     ).items
 
     assert replay.id == first.id
@@ -81,43 +73,37 @@ def test_replayed_deposit_has_one_identity_and_one_financial_effect(
 def test_changed_deposit_payload_with_reused_key_is_rejected_without_additional_effect(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
+    authenticate_user: UserAuthenticator,
 ) -> None:
-    token = banking_api_client.login(
-        email=registered_user.email,
-        password=registered_user.password,
-    )
-    account = get_account_by_type(
-        banking_api_client.list_accounts(access_token=token.access_token),
-        ProductAccountType.CHECKING,
-    )
+    authenticated = authenticate_user(registered_user)
     idempotency_key = f"deposit-{uuid4()}"
     first = banking_api_client.create_deposit(
-        destination_account_id=account.id,
+        destination_account_id=authenticated.checking.id,
         amount="100.00",
-        access_token=token.access_token,
+        access_token=authenticated.access_token,
         idempotency_key=idempotency_key,
     )
     wait_for_settlement(
         lambda: banking_api_client.get_deposit(
             instruction_id=first.id,
-            access_token=token.access_token,
+            access_token=authenticated.access_token,
         ),
         operation_name="deposit",
     )
 
     account_after_first = banking_api_client.get_account(
-        account_id=account.id,
-        access_token=token.access_token,
+        account_id=authenticated.checking.id,
+        access_token=authenticated.access_token,
     )
     activity_after_first = banking_api_client.list_activity(
-        access_token=token.access_token,
+        access_token=authenticated.access_token,
     ).items
 
     with pytest.raises(UnexpectedStatusError) as exc_info:
         banking_api_client.create_deposit(
-            destination_account_id=account.id,
+            destination_account_id=authenticated.checking.id,
             amount="125.00",
-            access_token=token.access_token,
+            access_token=authenticated.access_token,
             idempotency_key=idempotency_key,
         )
 
@@ -126,11 +112,11 @@ def test_changed_deposit_payload_with_reused_key_is_rejected_without_additional_
     assert error.error_code == "IDEMPOTENCY_PAYLOAD_MISMATCH"
 
     account_after_rejection = banking_api_client.get_account(
-        account_id=account.id,
-        access_token=token.access_token,
+        account_id=authenticated.checking.id,
+        access_token=authenticated.access_token,
     )
     activity_after_rejection = banking_api_client.list_activity(
-        access_token=token.access_token,
+        access_token=authenticated.access_token,
     ).items
 
     assert (
@@ -149,87 +135,70 @@ def test_two_users_can_use_the_same_deposit_key_independently(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
     register_user: UserRegistrar,
+    authenticate_user: UserAuthenticator,
 ) -> None:
-    first_token = banking_api_client.login(
-        email=registered_user.email,
-        password=registered_user.password,
-    )
-    first_account = get_account_by_type(
-        banking_api_client.list_accounts(
-            access_token=first_token.access_token,
-        ),
-        ProductAccountType.CHECKING,
-    )
-
-    second_user = register_user(display_name="Second Test User")
-    second_token = banking_api_client.login(
-        email=second_user.email,
-        password=second_user.password,
-    )
-    second_account = get_account_by_type(
-        banking_api_client.list_accounts(
-            access_token=second_token.access_token,
-        ),
-        ProductAccountType.CHECKING,
+    first = authenticate_user(registered_user)
+    second = authenticate_user(
+        register_user(display_name="Second Test User"),
     )
 
     first_before = banking_api_client.get_account(
-        account_id=first_account.id,
-        access_token=first_token.access_token,
+        account_id=first.checking.id,
+        access_token=first.access_token,
     )
     second_before = banking_api_client.get_account(
-        account_id=second_account.id,
-        access_token=second_token.access_token,
+        account_id=second.checking.id,
+        access_token=second.access_token,
     )
     first_activity_before = banking_api_client.list_activity(
-        access_token=first_token.access_token,
+        access_token=first.access_token,
     ).items
     second_activity_before = banking_api_client.list_activity(
-        access_token=second_token.access_token,
+        access_token=second.access_token,
     ).items
 
     shared_key = f"shared-deposit-{uuid4()}"
     first_deposit = banking_api_client.create_deposit(
-        destination_account_id=first_account.id,
+        destination_account_id=first.checking.id,
         amount="100.00",
-        access_token=first_token.access_token,
+        access_token=first.access_token,
         idempotency_key=shared_key,
     )
     second_deposit = banking_api_client.create_deposit(
-        destination_account_id=second_account.id,
+        destination_account_id=second.checking.id,
         amount="125.00",
-        access_token=second_token.access_token,
+        access_token=second.access_token,
         idempotency_key=shared_key,
     )
 
     wait_for_settlement(
         lambda: banking_api_client.get_deposit(
             instruction_id=first_deposit.id,
-            access_token=first_token.access_token,
+            access_token=first.access_token,
         ),
         operation_name="first user's deposit",
     )
     wait_for_settlement(
         lambda: banking_api_client.get_deposit(
             instruction_id=second_deposit.id,
-            access_token=second_token.access_token,
+            access_token=second.access_token,
         ),
         operation_name="second user's deposit",
     )
 
     first_after = banking_api_client.get_account(
-        account_id=first_account.id,
-        access_token=first_token.access_token,
+        account_id=first.checking.id,
+        access_token=first.access_token,
     )
     second_after = banking_api_client.get_account(
-        account_id=second_account.id,
-        access_token=second_token.access_token,
+        account_id=second.checking.id,
+        access_token=second.access_token,
     )
     first_activity_after = banking_api_client.list_activity(
-        access_token=first_token.access_token,
+        access_token=first.access_token,
     ).items
     second_activity_after = banking_api_client.list_activity(
-        access_token=second_token.access_token,
+        access_token=second.access_token,
     ).items
 
     assert first_deposit.id != second_deposit.id

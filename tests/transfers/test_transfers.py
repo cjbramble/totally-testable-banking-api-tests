@@ -5,6 +5,8 @@ from uuid import uuid4
 
 import pytest
 
+from totally_testable_banking_api_tests.account_selection import get_account_by_type
+from totally_testable_banking_api_tests.api_models import ProductAccountType
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 
@@ -20,9 +22,12 @@ def test_p2p_transfer_moves_exact_amount_between_accounts(
         email=registered_user.email,
         password=registered_user.password,
     )
-    sender_account = banking_api_client.list_accounts(
-        access_token=sender_token.access_token,
-    )[0]
+    sender_account = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=sender_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
 
     recipient = registered_user_factory(display_name="Recipient Test User")
     recipient_token = banking_api_client.login(
@@ -35,12 +40,18 @@ def test_p2p_transfer_moves_exact_amount_between_accounts(
         access_token=sender_token.access_token,
     )
 
-    sender_before = banking_api_client.list_accounts(
-        access_token=sender_token.access_token,
-    )[0]
-    recipient_before = banking_api_client.list_accounts(
-        access_token=recipient_token.access_token,
-    )[0]
+    sender_before = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=sender_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
+    recipient_before = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=recipient_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
     transfer_amount = Decimal("25.00")
 
     transfer = banking_api_client.create_transfer(
@@ -51,12 +62,18 @@ def test_p2p_transfer_moves_exact_amount_between_accounts(
         idempotency_key=f"transfer-{uuid4()}",
     )
 
-    sender_after = banking_api_client.list_accounts(
-        access_token=sender_token.access_token,
-    )[0]
-    recipient_after = banking_api_client.list_accounts(
-        access_token=recipient_token.access_token,
-    )[0]
+    sender_after = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=sender_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
+    recipient_after = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=recipient_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
 
     assert transfer.sender_user_id == registered_user.user.id
     assert transfer.recipient_user_id == recipient.user.id
@@ -86,18 +103,24 @@ def test_outsider_cannot_retrieve_another_users_transfer(
         email=registered_user.email,
         password=registered_user.password,
     )
-    owner_account = banking_api_client.list_accounts(
-        access_token=owner_token.access_token,
-    )[0]
+    owner_account = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=owner_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
 
     recipient = registered_user_factory(display_name="Recipient Test User")
     recipient_token = banking_api_client.login(
         email=recipient.email,
         password=recipient.password,
     )
-    recipient_account = banking_api_client.list_accounts(
-        access_token=recipient_token.access_token,
-    )[0]
+    recipient_account = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=recipient_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
 
     create_settled_deposit(
         destination_account_id=owner_account.id,

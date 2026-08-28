@@ -2,6 +2,8 @@
 
 import pytest
 
+from totally_testable_banking_api_tests.account_selection import get_account_by_type
+from totally_testable_banking_api_tests.api_models import ProductAccountType
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 
@@ -14,7 +16,10 @@ def test_owner_can_retrieve_their_account(
         email=registered_user.email,
         password=registered_user.password,
     )
-    account = banking_api_client.list_accounts(access_token=token.access_token)[0]
+    account = get_account_by_type(
+        banking_api_client.list_accounts(access_token=token.access_token),
+        ProductAccountType.CHECKING,
+    )
 
     retrieved = banking_api_client.get_account(
         account_id=account.id,
@@ -35,9 +40,12 @@ def test_outsider_cannot_retrieve_another_users_account(
         email=registered_user.email,
         password=registered_user.password,
     )
-    owner_account = banking_api_client.list_accounts(
-        access_token=owner_token.access_token,
-    )[0]
+    owner_account = get_account_by_type(
+        banking_api_client.list_accounts(
+            access_token=owner_token.access_token,
+        ),
+        ProductAccountType.CHECKING,
+    )
 
     outsider = registered_user_factory(display_name="Outsider Test User")
     outsider_token = banking_api_client.login(

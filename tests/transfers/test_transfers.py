@@ -9,14 +9,19 @@ from totally_testable_banking_api_tests.account_selection import get_account_by_
 from totally_testable_banking_api_tests.api_models import ProductAccountType
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
+from totally_testable_banking_api_tests.setup_actions import (
+    SettledDepositCreator,
+    UserRegistrar,
+)
+from totally_testable_banking_api_tests.test_data import RegisteredUser
 
 
 @pytest.mark.invariant
 def test_p2p_transfer_moves_exact_amount_between_accounts(
     banking_api_client: BankingApiClient,
-    registered_user,
-    registered_user_factory,
-    create_settled_deposit,
+    registered_user: RegisteredUser,
+    register_user: UserRegistrar,
+    create_settled_deposit: SettledDepositCreator,
 ) -> None:
     sender_token = banking_api_client.login(
         email=registered_user.email,
@@ -29,7 +34,7 @@ def test_p2p_transfer_moves_exact_amount_between_accounts(
         ProductAccountType.CHECKING,
     )
 
-    recipient = registered_user_factory(display_name="Recipient Test User")
+    recipient = register_user(display_name="Recipient Test User")
     recipient_token = banking_api_client.login(
         email=recipient.email,
         password=recipient.password,
@@ -95,9 +100,9 @@ def test_p2p_transfer_moves_exact_amount_between_accounts(
 @pytest.mark.negative
 def test_outsider_cannot_retrieve_another_users_transfer(
     banking_api_client: BankingApiClient,
-    registered_user,
-    registered_user_factory,
-    create_settled_deposit,
+    registered_user: RegisteredUser,
+    register_user: UserRegistrar,
+    create_settled_deposit: SettledDepositCreator,
 ) -> None:
     owner_token = banking_api_client.login(
         email=registered_user.email,
@@ -110,7 +115,7 @@ def test_outsider_cannot_retrieve_another_users_transfer(
         ProductAccountType.CHECKING,
     )
 
-    recipient = registered_user_factory(display_name="Recipient Test User")
+    recipient = register_user(display_name="Recipient Test User")
     recipient_token = banking_api_client.login(
         email=recipient.email,
         password=recipient.password,
@@ -135,7 +140,7 @@ def test_outsider_cannot_retrieve_another_users_transfer(
         idempotency_key=f"transfer-{uuid4()}",
     )
 
-    outsider = registered_user_factory(display_name="Outsider Test User")
+    outsider = register_user(display_name="Outsider Test User")
     outsider_token = banking_api_client.login(
         email=outsider.email,
         password=outsider.password,

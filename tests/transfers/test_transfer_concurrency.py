@@ -16,6 +16,11 @@ from totally_testable_banking_api_tests.api_models import (
 )
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
+from totally_testable_banking_api_tests.setup_actions import (
+    SettledDepositCreator,
+    UserRegistrar,
+)
+from totally_testable_banking_api_tests.test_data import FundedAccount
 
 
 @dataclass(frozen=True)
@@ -26,9 +31,9 @@ class _AuthenticatedCheckingAccount:
 
 def _register_checking_account(
     banking_api_client: BankingApiClient,
-    registered_user_factory,
+    register_user: UserRegistrar,
 ) -> _AuthenticatedCheckingAccount:
-    user = registered_user_factory(display_name="Recipient Test User")
+    user = register_user(display_name="Recipient Test User")
     token = banking_api_client.login(email=user.email, password=user.password)
     account = next(
         account
@@ -45,7 +50,7 @@ def _register_checking_account(
 
 def _fund_checking_account(
     banking_api_client: BankingApiClient,
-    create_settled_deposit,
+    create_settled_deposit: SettledDepositCreator,
     account: _AuthenticatedCheckingAccount,
     *,
     amount: str,
@@ -69,7 +74,7 @@ def _fund_checking_account(
 @pytest.mark.invariant
 def test_concurrent_same_key_account_transfers_have_one_financial_effect(
     banking_api_client: BankingApiClient,
-    funded_account,
+    funded_account: FundedAccount,
 ) -> None:
     savings_before = next(
         account
@@ -138,12 +143,12 @@ def test_concurrent_same_key_account_transfers_have_one_financial_effect(
 @pytest.mark.invariant
 def test_competing_transfers_cannot_overspend_one_account(
     banking_api_client: BankingApiClient,
-    funded_account,
-    registered_user_factory,
+    funded_account: FundedAccount,
+    register_user: UserRegistrar,
 ) -> None:
     recipients = [
-        _register_checking_account(banking_api_client, registered_user_factory),
-        _register_checking_account(banking_api_client, registered_user_factory),
+        _register_checking_account(banking_api_client, register_user),
+        _register_checking_account(banking_api_client, register_user),
     ]
     sender_before = banking_api_client.get_account(
         account_id=funded_account.account.id,
@@ -245,9 +250,9 @@ def test_competing_transfers_cannot_overspend_one_account(
 @pytest.mark.invariant
 def test_opposing_direction_transfers_both_post_with_coherent_balances(
     banking_api_client: BankingApiClient,
-    funded_account,
-    registered_user_factory,
-    create_settled_deposit,
+    funded_account: FundedAccount,
+    register_user: UserRegistrar,
+    create_settled_deposit: SettledDepositCreator,
 ) -> None:
     account_a = _AuthenticatedCheckingAccount(
         access_token=funded_account.access_token,
@@ -256,7 +261,7 @@ def test_opposing_direction_transfers_both_post_with_coherent_balances(
     account_b = _fund_checking_account(
         banking_api_client,
         create_settled_deposit,
-        _register_checking_account(banking_api_client, registered_user_factory),
+        _register_checking_account(banking_api_client, register_user),
         amount="100.00",
     )
     activity_a_before = banking_api_client.list_activity(

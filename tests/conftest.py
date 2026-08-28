@@ -1,88 +1,18 @@
 """Function-scoped fixtures for isolated users and API client lifecycle."""
 
 from collections.abc import Iterator
-from dataclasses import dataclass
-from uuid import UUID, uuid4
 
 import pytest
 
-from totally_testable_banking_api_tests.api_models import (
-    AccountResponse,
-    DepositResponse,
-    ProductAccountType,
-    UserResponse,
-)
+from totally_testable_banking_api_tests.api_models import ProductAccountType
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import ApiClient
-from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
-from totally_testable_banking_api_tests.processor_control import ProcessorControlClient
-from totally_testable_banking_api_tests.scheduled_worker_control import ScheduledWorkerControl
 from totally_testable_banking_api_tests.settings import load_settings
-
-
-@dataclass(frozen=True)
-class RegisteredUser:
-    """Immutable registration result plus credentials needed by later actions."""
-
-    user: UserResponse
-    email: str
-    password: str
-
-
-@dataclass(frozen=True)
-class FundedAccount:
-    """Authenticated checking account whose funding deposit has settled."""
-
-    access_token: str
-    account: AccountResponse
-
-
-class RegisteredUserFactory:
-    """Create isolated registered users through the normal product API."""
-
-    def __init__(self, banking_api_client: BankingApiClient) -> None:
-        self._banking_api_client = banking_api_client
-
-    def __call__(self, *, display_name: str = "Test User") -> RegisteredUser:
-        unique_id = uuid4().hex
-        email = f"api-test-user-{unique_id}@example.com"
-        password = f"Test-user-{unique_id}"
-        user = self._banking_api_client.register_user(
-            email=email,
-            display_name=display_name,
-            password=password,
-        )
-        return RegisteredUser(user=user, email=email, password=password)
-
-
-class SettledDepositFactory:
-    """Create deposits through the product API and await settlement."""
-
-    def __init__(self, banking_api_client: BankingApiClient) -> None:
-        self._banking_api_client = banking_api_client
-
-    def __call__(
-        self,
-        *,
-        destination_account_id: UUID,
-        access_token: str,
-        amount: str = "100.00",
-        idempotency_key: str | None = None,
-    ) -> DepositResponse:
-        key = idempotency_key if idempotency_key is not None else f"deposit-{uuid4()}"
-        deposit = self._banking_api_client.create_deposit(
-            destination_account_id=destination_account_id,
-            amount=amount,
-            access_token=access_token,
-            idempotency_key=key,
-        )
-        return wait_for_settlement(
-            lambda: self._banking_api_client.get_deposit(
-                instruction_id=deposit.id,
-                access_token=access_token,
-            ),
-            operation_name="funding deposit",
-        )
+from totally_testable_banking_api_tests.setup_actions import (
+    SettledDepositCreator,
+    UserRegistrar,
+)
+from totally_testable_banking_api_tests.test_data import FundedAccount, RegisteredUser
 
 
 @pytest.fixture
@@ -102,64 +32,37 @@ def banking_api_client() -> Iterator[BankingApiClient]:
 
 
 @pytest.fixture
-def processor_control_client() -> Iterator[ProcessorControlClient]:
-    """Provide an isolated client for the local simulated-processor boundary."""
-
-    settings = load_settings()
-    transport = ApiClient(
-        base_url=settings.processor_control_url,
-        timeout=settings.request_timeout_seconds,
-    )
-
-    try:
-        yield ProcessorControlClient(
-            transport,
-            token=settings.processor_control_secret.get_secret_value(),
-        )
-    finally:
-        transport.close()
-
-
-@pytest.fixture
-def scheduled_worker_control() -> ScheduledWorkerControl:
-    """Provide operation-scoped access to the local scheduled-transfer worker."""
-
-    settings = load_settings()
-    return ScheduledWorkerControl(settings.sut_compose_file)
-
-
-@pytest.fixture
-def registered_user_factory(
+def register_user(
     banking_api_client: BankingApiClient,
-) -> RegisteredUserFactory:
-    """Provide a function-scoped factory for isolated registered users."""
+) -> UserRegistrar:
+    """Provide a callable that registers isolated users through the API."""
 
-    return RegisteredUserFactory(banking_api_client)
+    return UserRegistrar(banking_api_client)
 
 
 @pytest.fixture
 def registered_user(
-    registered_user_factory: RegisteredUserFactory,
+    register_user: UserRegistrar,
 ) -> RegisteredUser:
     """Register one uniquely named user through the normal product API."""
 
-    return registered_user_factory()
+    return register_user()
 
 
 @pytest.fixture
 def create_settled_deposit(
     banking_api_client: BankingApiClient,
-) -> SettledDepositFactory:
+) -> SettledDepositCreator:
     """Provide a callable that creates a deposit and waits for settlement."""
 
-    return SettledDepositFactory(banking_api_client)
+    return SettledDepositCreator(banking_api_client)
 
 
 @pytest.fixture
 def funded_account(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
-    create_settled_deposit: SettledDepositFactory,
+    create_settled_deposit: SettledDepositCreator,
 ) -> FundedAccount:
     """Fund one unique user's checking account through normal product routes."""
 

@@ -1,7 +1,8 @@
 """Bounded polling for asynchronous banking operations."""
 
-import time
 from collections.abc import Callable, Collection
+from time import monotonic as _monotonic
+from time import sleep as _sleep
 from typing import Protocol
 
 
@@ -52,18 +53,18 @@ def _wait_for_terminal_status[Response: StatusResponse](
     timeout_error: type[OperationPollingTimeoutError],
     timeout_action: str,
 ) -> Response:
-    deadline = time.monotonic() + timeout_seconds
+    deadline = _monotonic() + timeout_seconds
 
     while True:
         current = fetch()
         if current.status in terminal_statuses:
             return current
-        remaining_seconds = deadline - time.monotonic()
+        remaining_seconds = deadline - _monotonic()
         if remaining_seconds <= 0:
             raise timeout_error(
                 f"{operation_name} did not {timeout_action}; final status was {current.status!r}"
             )
-        time.sleep(min(poll_interval_seconds, remaining_seconds))
+        _sleep(min(poll_interval_seconds, remaining_seconds))
 
 
 def wait_for_terminal_status[Response: StatusResponse](

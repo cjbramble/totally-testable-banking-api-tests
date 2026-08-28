@@ -4,12 +4,13 @@ import pytest
 
 from totally_testable_banking_api_tests.api_models import ProductAccountType
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
+from totally_testable_banking_api_tests.test_data import RegisteredUser
 
 
 @pytest.mark.smoke
 def test_registered_user_can_authenticate_and_list_empty_accounts(
     banking_api_client: BankingApiClient,
-    registered_user,
+    registered_user: RegisteredUser,
 ) -> None:
     token = banking_api_client.login(
         email=registered_user.email,

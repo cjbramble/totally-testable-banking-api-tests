@@ -12,11 +12,13 @@ from totally_testable_banking_api_tests.api_models import (
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
+from totally_testable_banking_api_tests.setup_actions import UserRegistrar
+from totally_testable_banking_api_tests.test_data import FundedAccount
 
 
 def test_withdrawal_request_for_owned_account_is_accepted(
     banking_api_client: BankingApiClient,
-    funded_account,
+    funded_account: FundedAccount,
 ) -> None:
     withdrawal = banking_api_client.create_withdrawal(
         source_account_id=funded_account.account.id,
@@ -36,7 +38,7 @@ def test_withdrawal_request_for_owned_account_is_accepted(
 
 def test_created_withdrawal_can_be_retrieved_by_its_owner(
     banking_api_client: BankingApiClient,
-    funded_account,
+    funded_account: FundedAccount,
 ) -> None:
     withdrawal = banking_api_client.create_withdrawal(
         source_account_id=funded_account.account.id,
@@ -60,8 +62,8 @@ def test_created_withdrawal_can_be_retrieved_by_its_owner(
 @pytest.mark.negative
 def test_outsider_cannot_retrieve_another_users_withdrawal(
     banking_api_client: BankingApiClient,
-    funded_account,
-    registered_user_factory,
+    funded_account: FundedAccount,
+    register_user: UserRegistrar,
 ) -> None:
     withdrawal = banking_api_client.create_withdrawal(
         source_account_id=funded_account.account.id,
@@ -70,7 +72,7 @@ def test_outsider_cannot_retrieve_another_users_withdrawal(
         idempotency_key=f"withdrawal-{uuid4()}",
     )
 
-    outsider = registered_user_factory(display_name="Outsider Test User")
+    outsider = register_user(display_name="Outsider Test User")
     outsider_token = banking_api_client.login(
         email=outsider.email,
         password=outsider.password,
@@ -91,7 +93,7 @@ def test_outsider_cannot_retrieve_another_users_withdrawal(
 @pytest.mark.invariant
 def test_withdrawal_settlement_updates_balances_and_activity(
     banking_api_client: BankingApiClient,
-    funded_account,
+    funded_account: FundedAccount,
 ) -> None:
     withdrawal_amount = Decimal("25.00")
     account_before = funded_account.account

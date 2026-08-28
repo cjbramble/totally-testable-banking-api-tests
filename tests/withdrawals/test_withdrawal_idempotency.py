@@ -10,13 +10,18 @@ from totally_testable_banking_api_tests.api_models import ProductAccountType
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
+from totally_testable_banking_api_tests.setup_actions import (
+    SettledDepositCreator,
+    UserRegistrar,
+)
+from totally_testable_banking_api_tests.test_data import RegisteredUser
 
 
 @pytest.mark.invariant
 def test_replayed_withdrawal_has_one_identity_and_one_financial_effect(
     banking_api_client: BankingApiClient,
-    registered_user,
-    create_settled_deposit,
+    registered_user: RegisteredUser,
+    create_settled_deposit: SettledDepositCreator,
 ) -> None:
     token = banking_api_client.login(
         email=registered_user.email,
@@ -85,8 +90,8 @@ def test_replayed_withdrawal_has_one_identity_and_one_financial_effect(
 @pytest.mark.negative
 def test_changed_withdrawal_payload_with_reused_key_is_rejected_without_additional_effect(
     banking_api_client: BankingApiClient,
-    registered_user,
-    create_settled_deposit,
+    registered_user: RegisteredUser,
+    create_settled_deposit: SettledDepositCreator,
 ) -> None:
     token = banking_api_client.login(
         email=registered_user.email,
@@ -159,9 +164,9 @@ def test_changed_withdrawal_payload_with_reused_key_is_rejected_without_addition
 @pytest.mark.invariant
 def test_two_users_can_use_the_same_withdrawal_key_independently(
     banking_api_client: BankingApiClient,
-    registered_user,
-    registered_user_factory,
-    create_settled_deposit,
+    registered_user: RegisteredUser,
+    register_user: UserRegistrar,
+    create_settled_deposit: SettledDepositCreator,
 ) -> None:
     first_token = banking_api_client.login(
         email=registered_user.email,
@@ -174,7 +179,7 @@ def test_two_users_can_use_the_same_withdrawal_key_independently(
         ProductAccountType.CHECKING,
     )
 
-    second_user = registered_user_factory(display_name="Second Test User")
+    second_user = register_user(display_name="Second Test User")
     second_token = banking_api_client.login(
         email=second_user.email,
         password=second_user.password,

@@ -20,6 +20,8 @@ from totally_testable_banking_api_tests.scheduled_worker_control import (
     ScheduledWorkerCommandError,
     ScheduledWorkerControl,
 )
+from totally_testable_banking_api_tests.setup_actions import UserRegistrar
+from totally_testable_banking_api_tests.test_data import FundedAccount, RegisteredUser
 
 
 @dataclass(frozen=True)
@@ -31,9 +33,9 @@ class _AuthenticatedAccounts:
 
 def _register_authenticated_user(
     banking_api_client: BankingApiClient,
-    registered_user_factory,
+    register_user: UserRegistrar,
 ) -> _AuthenticatedAccounts:
-    user = registered_user_factory(display_name="Other Test User")
+    user = register_user(display_name="Other Test User")
     token = banking_api_client.login(email=user.email, password=user.password)
     accounts = banking_api_client.list_accounts(access_token=token.access_token)
     return _AuthenticatedAccounts(
@@ -66,8 +68,8 @@ def _wait_for_transfer_terminal(
 @pytest.mark.invariant
 def test_immediate_checking_to_savings_transfer_moves_exact_amount(
     banking_api_client: BankingApiClient,
-    registered_user,
-    funded_account,
+    registered_user: RegisteredUser,
+    funded_account: FundedAccount,
 ) -> None:
     savings_before = next(
         account
@@ -126,8 +128,8 @@ def test_immediate_checking_to_savings_transfer_moves_exact_amount(
 @pytest.mark.invariant
 def test_immediate_savings_to_checking_transfer_moves_exact_amount(
     banking_api_client: BankingApiClient,
-    registered_user,
-    funded_account,
+    registered_user: RegisteredUser,
+    funded_account: FundedAccount,
 ) -> None:
     savings = next(
         account
@@ -199,8 +201,8 @@ def test_immediate_savings_to_checking_transfer_moves_exact_amount(
 @pytest.mark.invariant
 def test_future_account_transfer_has_no_early_financial_effect(
     banking_api_client: BankingApiClient,
-    registered_user,
-    funded_account,
+    registered_user: RegisteredUser,
+    funded_account: FundedAccount,
 ) -> None:
     savings_before = next(
         account
@@ -262,7 +264,7 @@ def test_future_account_transfer_has_no_early_financial_effect(
 @pytest.mark.invariant
 def test_scheduled_account_transfer_can_be_canceled_before_execution(
     banking_api_client: BankingApiClient,
-    funded_account,
+    funded_account: FundedAccount,
 ) -> None:
     savings_before = next(
         account
@@ -330,7 +332,7 @@ def test_scheduled_account_transfer_can_be_canceled_before_execution(
 @pytest.mark.invariant
 def test_completed_account_transfer_cannot_be_canceled(
     banking_api_client: BankingApiClient,
-    funded_account,
+    funded_account: FundedAccount,
 ) -> None:
     savings = next(
         account
@@ -401,7 +403,7 @@ def test_completed_account_transfer_cannot_be_canceled(
 @pytest.mark.invariant
 def test_own_account_transfer_rejects_same_source_and_destination(
     banking_api_client: BankingApiClient,
-    funded_account,
+    funded_account: FundedAccount,
 ) -> None:
     account_before = banking_api_client.get_account(
         account_id=funded_account.account.id,
@@ -450,10 +452,10 @@ def test_own_account_transfer_rejects_same_source_and_destination(
 @pytest.mark.invariant
 def test_own_account_transfer_rejects_foreign_destination(
     banking_api_client: BankingApiClient,
-    funded_account,
-    registered_user_factory,
+    funded_account: FundedAccount,
+    register_user: UserRegistrar,
 ) -> None:
-    other_user = _register_authenticated_user(banking_api_client, registered_user_factory)
+    other_user = _register_authenticated_user(banking_api_client, register_user)
     other_savings_before = other_user.savings
     owner_checking_before = banking_api_client.get_account(
         account_id=funded_account.account.id,
@@ -524,10 +526,10 @@ def test_own_account_transfer_rejects_foreign_destination(
 @pytest.mark.invariant
 def test_own_account_transfer_rejects_foreign_source(
     banking_api_client: BankingApiClient,
-    funded_account,
-    registered_user_factory,
+    funded_account: FundedAccount,
+    register_user: UserRegistrar,
 ) -> None:
-    other_user = _register_authenticated_user(banking_api_client, registered_user_factory)
+    other_user = _register_authenticated_user(banking_api_client, register_user)
     owner_checking_before = banking_api_client.get_account(
         account_id=funded_account.account.id,
         access_token=funded_account.access_token,
@@ -606,7 +608,7 @@ def test_own_account_transfer_rejects_foreign_source(
 )
 def test_scheduled_account_transfer_rejects_non_future_date(
     banking_api_client: BankingApiClient,
-    funded_account,
+    funded_account: FundedAccount,
     day_offset: int,
 ) -> None:
     savings_before = next(
@@ -677,7 +679,7 @@ def test_scheduled_account_transfer_rejects_non_future_date(
 def test_scheduled_account_transfer_posts_on_controlled_banking_date(
     banking_api_client: BankingApiClient,
     scheduled_worker_control: ScheduledWorkerControl,
-    funded_account,
+    funded_account: FundedAccount,
 ) -> None:
     savings_before = next(
         account
@@ -779,7 +781,7 @@ def test_scheduled_account_transfer_posts_on_controlled_banking_date(
 def test_scheduled_account_transfer_fails_when_funds_are_spent_before_execution(
     banking_api_client: BankingApiClient,
     scheduled_worker_control: ScheduledWorkerControl,
-    funded_account,
+    funded_account: FundedAccount,
 ) -> None:
     savings = next(
         account

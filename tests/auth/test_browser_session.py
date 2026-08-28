@@ -4,11 +4,12 @@ import pytest
 
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
+from totally_testable_banking_api_tests.test_data import RegisteredUser
 
 
 def test_browser_session_persists_cookie_for_session_read(
     banking_api_client: BankingApiClient,
-    registered_user,
+    registered_user: RegisteredUser,
 ) -> None:
     created = banking_api_client.create_browser_session(
         email=registered_user.email,
@@ -25,7 +26,7 @@ def test_browser_session_persists_cookie_for_session_read(
 @pytest.mark.negative
 def test_logout_invalidates_browser_session(
     banking_api_client: BankingApiClient,
-    registered_user,
+    registered_user: RegisteredUser,
 ) -> None:
     banking_api_client.create_browser_session(
         email=registered_user.email,
@@ -45,7 +46,7 @@ def test_logout_invalidates_browser_session(
 @pytest.mark.negative
 def test_invalid_csrf_token_is_rejected(
     banking_api_client: BankingApiClient,
-    registered_user,
+    registered_user: RegisteredUser,
 ) -> None:
     banking_api_client.create_browser_session(
         email=registered_user.email,

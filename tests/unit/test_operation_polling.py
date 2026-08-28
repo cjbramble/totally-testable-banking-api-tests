@@ -33,7 +33,7 @@ def test_wait_for_terminal_status_returns_configured_terminal_response(
             StubOperation(status=terminal_status),
         ]
     )
-    monkeypatch.setattr(operation_polling.time, "sleep", lambda _interval: None)
+    monkeypatch.setattr(operation_polling, "_sleep", lambda _interval: None)
 
     result = wait_for_terminal_status(
         lambda: next(responses),
@@ -83,8 +83,8 @@ def test_wait_for_terminal_status_times_out_before_terminal_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monotonic_values = iter([0.0, 0.0, 1.1])
-    monkeypatch.setattr(operation_polling.time, "monotonic", lambda: next(monotonic_values))
-    monkeypatch.setattr(operation_polling.time, "sleep", lambda _interval: None)
+    monkeypatch.setattr(operation_polling, "_monotonic", lambda: next(monotonic_values))
+    monkeypatch.setattr(operation_polling, "_sleep", lambda _interval: None)
 
     with pytest.raises(
         OperationPollingTimeoutError,
@@ -109,8 +109,8 @@ def test_wait_for_terminal_status_limits_sleep_to_remaining_timeout(
     )
     monotonic_values = iter([0.0, 0.8])
     sleep_intervals: list[float] = []
-    monkeypatch.setattr(operation_polling.time, "monotonic", lambda: next(monotonic_values))
-    monkeypatch.setattr(operation_polling.time, "sleep", sleep_intervals.append)
+    monkeypatch.setattr(operation_polling, "_monotonic", lambda: next(monotonic_values))
+    monkeypatch.setattr(operation_polling, "_sleep", sleep_intervals.append)
 
     result = wait_for_terminal_status(
         lambda: next(responses),
@@ -133,7 +133,7 @@ def test_wait_for_settlement_returns_settled_response(
             StubOperation(status="SETTLED"),
         ]
     )
-    monkeypatch.setattr(operation_polling.time, "sleep", lambda _interval: None)
+    monkeypatch.setattr(operation_polling, "_sleep", lambda _interval: None)
 
     result = wait_for_settlement(
         lambda: next(responses),
@@ -180,8 +180,8 @@ def test_wait_for_settlement_times_out_while_pending(
 ) -> None:
     monotonic_values = iter([0.0, 0.0, 1.1])
     sleep_intervals: list[float] = []
-    monkeypatch.setattr(operation_polling.time, "monotonic", lambda: next(monotonic_values))
-    monkeypatch.setattr(operation_polling.time, "sleep", sleep_intervals.append)
+    monkeypatch.setattr(operation_polling, "_monotonic", lambda: next(monotonic_values))
+    monkeypatch.setattr(operation_polling, "_sleep", sleep_intervals.append)
 
     with pytest.raises(
         OperationSettlementTimeoutError,

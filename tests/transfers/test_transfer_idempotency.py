@@ -15,6 +15,11 @@ from totally_testable_banking_api_tests.api_models import (
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import ApiClient, UnexpectedStatusError
 from totally_testable_banking_api_tests.settings import load_settings
+from totally_testable_banking_api_tests.setup_actions import (
+    SettledDepositCreator,
+    UserRegistrar,
+)
+from totally_testable_banking_api_tests.test_data import RegisteredUser
 
 
 class LostSuccessfulResponseTransport(httpx.BaseTransport):
@@ -51,9 +56,9 @@ class FundedTransferContext:
 @pytest.fixture
 def funded_transfer_context(
     banking_api_client: BankingApiClient,
-    registered_user,
-    registered_user_factory,
-    create_settled_deposit,
+    registered_user: RegisteredUser,
+    register_user: UserRegistrar,
+    create_settled_deposit: SettledDepositCreator,
 ) -> FundedTransferContext:
     """Create fresh participants with a settled sender balance for each test."""
 
@@ -73,7 +78,7 @@ def funded_transfer_context(
         access_token=sender_token.access_token,
     )
 
-    recipient = registered_user_factory(display_name="Recipient Test User")
+    recipient = register_user(display_name="Recipient Test User")
     recipient_token = banking_api_client.login(
         email=recipient.email,
         password=recipient.password,
@@ -248,7 +253,7 @@ def test_changed_payload_with_reused_key_is_rejected_without_additional_effect(
 def test_two_users_can_use_the_same_idempotency_key_independently(
     banking_api_client: BankingApiClient,
     funded_transfer_context: FundedTransferContext,
-    create_settled_deposit,
+    create_settled_deposit: SettledDepositCreator,
 ) -> None:
     context = funded_transfer_context
     create_settled_deposit(
@@ -326,7 +331,7 @@ def test_two_users_can_use_the_same_idempotency_key_independently(
 def test_same_key_is_independent_across_deposit_and_transfer_operations(
     banking_api_client: BankingApiClient,
     funded_transfer_context: FundedTransferContext,
-    create_settled_deposit,
+    create_settled_deposit: SettledDepositCreator,
 ) -> None:
     context = funded_transfer_context
     source_before = banking_api_client.get_account(

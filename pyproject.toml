@@ -46,5 +46,6 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 python_version = "3.13"
 strict = true
 mypy_path = ["src"]
-packages = ["totally_testable_banking_api_tests"]
+files = ["src", "tests"]
+explicit_package_bases = true
 plugins = ["pydantic.mypy"]

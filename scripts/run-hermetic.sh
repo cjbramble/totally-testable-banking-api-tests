@@ -2,7 +2,10 @@
 
 set -Eeuo pipefail
 
+failure_message=""
+
 fail() {
+  failure_message="$*"
   printf 'Hermetic runner failed: %s\n' "$*" >&2
   exit 2
 }
@@ -131,6 +134,9 @@ cleanup() {
       printf 'phase=%s\n' "$current_phase"
       printf 'exit_status=%s\n' "$exit_status"
       printf 'compose_project=%s\n' "$compose_project"
+      if [[ -n "$failure_message" ]]; then
+        printf 'message=%s\n' "$failure_message"
+      fi
     } >"$artifact_dir/failure-summary.txt"
 
     if [[ "$cleanup_enabled" == true ]]; then

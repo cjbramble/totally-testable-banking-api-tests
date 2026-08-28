@@ -13,32 +13,26 @@ from totally_testable_banking_api_tests.api_models import (
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
-from totally_testable_banking_api_tests.setup_actions import UserRegistrar
+from totally_testable_banking_api_tests.setup_actions import UserAuthenticator, UserRegistrar
 from totally_testable_banking_api_tests.test_data import RegisteredUser
 
 
 def test_deposit_request_for_owned_account_is_accepted(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
+    authenticate_user: UserAuthenticator,
 ) -> None:
-    token = banking_api_client.login(
-        email=registered_user.email,
-        password=registered_user.password,
-    )
-    account = get_account_by_type(
-        banking_api_client.list_accounts(access_token=token.access_token),
-        ProductAccountType.CHECKING,
-    )
+    authenticated = authenticate_user(registered_user)
 
     deposit = banking_api_client.create_deposit(
-        destination_account_id=account.id,
+        destination_account_id=authenticated.checking.id,
         amount="100.00",
-        access_token=token.access_token,
+        access_token=authenticated.access_token,
         idempotency_key=f"deposit-{uuid4()}",
     )
 
     assert deposit.id
-    assert deposit.destination_account_id == account.id
+    assert deposit.destination_account_id == authenticated.checking.id
     assert deposit.amount == "100.00"
     assert deposit.currency == "USD"
     assert deposit.status == "CREATED"
@@ -49,25 +43,19 @@ def test_deposit_request_for_owned_account_is_accepted(
 def test_created_deposit_can_be_retrieved_by_its_owner(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
+    authenticate_user: UserAuthenticator,
 ) -> None:
-    token = banking_api_client.login(
-        email=registered_user.email,
-        password=registered_user.password,
-    )
-    account = get_account_by_type(
-        banking_api_client.list_accounts(access_token=token.access_token),
-        ProductAccountType.CHECKING,
-    )
+    authenticated = authenticate_user(registered_user)
     deposit = banking_api_client.create_deposit(
-        destination_account_id=account.id,
+        destination_account_id=authenticated.checking.id,
         amount="100.00",
-        access_token=token.access_token,
+        access_token=authenticated.access_token,
         idempotency_key=f"deposit-{uuid4()}",
     )
 
     retrieved = banking_api_client.get_deposit(
         instruction_id=deposit.id,
-        access_token=token.access_token,
+        access_token=authenticated.access_token,
     )
 
     assert retrieved.id == deposit.id
@@ -82,21 +70,13 @@ def test_outsider_cannot_retrieve_another_users_deposit(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
     register_user: UserRegistrar,
+    authenticate_user: UserAuthenticator,
 ) -> None:
-    owner_token = banking_api_client.login(
-        email=registered_user.email,
-        password=registered_user.password,
-    )
-    owner_account = get_account_by_type(
-        banking_api_client.list_accounts(
-            access_token=owner_token.access_token,
-        ),
-        ProductAccountType.CHECKING,
-    )
+    owner = authenticate_user(registered_user)
     deposit = banking_api_client.create_deposit(
-        destination_account_id=owner_account.id,
+        destination_account_id=owner.checking.id,
         amount="100.00",
-        access_token=owner_token.access_token,
+        access_token=owner.access_token,
         idempotency_key=f"deposit-{uuid4()}",
     )
 
@@ -121,28 +101,23 @@ def test_outsider_cannot_retrieve_another_users_deposit(
 def test_deposit_settlement_updates_balances_and_activity(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
+    authenticate_user: UserAuthenticator,
 ) -> None:
-    token = banking_api_client.login(
-        email=registered_user.email,
-        password=registered_user.password,
-    )
-    account = get_account_by_type(
-        banking_api_client.list_accounts(access_token=token.access_token),
-        ProductAccountType.CHECKING,
-    )
+    authenticated = authenticate_user(registered_user)
+    account = authenticated.checking
     assert account.settled_balance == "0.00"
     assert account.available_balance == "0.00"
 
     deposit = banking_api_client.create_deposit(
         destination_account_id=account.id,
         amount="100.00",
-        access_token=token.access_token,
+        access_token=authenticated.access_token,
         idempotency_key=f"deposit-{uuid4()}",
     )
     current = wait_for_settlement(
         lambda: banking_api_client.get_deposit(
             instruction_id=deposit.id,
-            access_token=token.access_token,
+            access_token=authenticated.access_token,
         ),
         operation_name="deposit",
     )
@@ -150,14 +125,14 @@ def test_deposit_settlement_updates_balances_and_activity(
     assert current.completed_at is not None
     settled_account = get_account_by_type(
         banking_api_client.list_accounts(
-            access_token=token.access_token,
+            access_token=authenticated.access_token,
         ),
         ProductAccountType.CHECKING,
     )
     matching_activity = [
         item
         for item in banking_api_client.list_activity(
-            access_token=token.access_token,
+            access_token=authenticated.access_token,
         ).items
         if item.operation_id == deposit.id
     ]

@@ -104,19 +104,19 @@ passes or fails.
 
 ### Verified final gate
 
-On 2026-08-27, `./scripts/run-hermetic.sh --test` passed against a fresh, isolated stack:
+On 2026-08-28, `./scripts/run-hermetic.sh --test` passed against a fresh, isolated stack:
 
 | Phase | Result |
 | --- | --- |
 | Ruff, format, and mypy | Passed |
 | Fresh database migrations and application readiness | Passed |
 | Smoke selection | 3 passed |
-| Complete serial suite | 120 passed |
-| Ordinary suite with two xdist workers | 117 passed |
+| Complete serial suite | 132 passed |
+| Ordinary suite with two xdist workers | 129 passed |
 | Dedicated concurrency suite | 3 passed |
 | Compose teardown | No run containers, network, or volumes remained |
 
-Run `ttb-api-tests-20260827142053-24115` produced separately named `smoke.xml`, `serial.xml`,
+Run `ttb-api-tests-20260828031433-51467` produced separately named `smoke.xml`, `serial.xml`,
 `parallel.xml`, and `concurrency.xml` reports. Each JUnit suite name includes both its execution
 phase and the unique run ID. Genuine failed run `ttb-api-tests-20260827040309-79386` identified the
 failed test and its `6.00` versus `25.00` assertion, captured Compose status and logs, and left no

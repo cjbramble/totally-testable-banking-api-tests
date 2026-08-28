@@ -4,8 +4,6 @@ from collections.abc import Iterator
 
 import pytest
 
-from totally_testable_banking_api_tests.account_selection import get_account_by_type
-from totally_testable_banking_api_tests.api_models import ProductAccountType
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import ApiClient
 from totally_testable_banking_api_tests.settings import load_settings
@@ -73,25 +71,19 @@ def create_settled_deposit(
 def funded_account(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
+    authenticate_user: UserAuthenticator,
     create_settled_deposit: SettledDepositCreator,
 ) -> FundedAccount:
     """Fund one unique user's checking account through normal product routes."""
 
-    token = banking_api_client.login(
-        email=registered_user.email,
-        password=registered_user.password,
-    )
-    account = get_account_by_type(
-        banking_api_client.list_accounts(access_token=token.access_token),
-        ProductAccountType.CHECKING,
-    )
+    authenticated = authenticate_user(registered_user)
     create_settled_deposit(
-        destination_account_id=account.id,
-        access_token=token.access_token,
+        destination_account_id=authenticated.checking.id,
+        access_token=authenticated.access_token,
     )
 
     funded = banking_api_client.get_account(
-        account_id=account.id,
-        access_token=token.access_token,
+        account_id=authenticated.checking.id,
+        access_token=authenticated.access_token,
     )
-    return FundedAccount(access_token=token.access_token, account=funded)
+    return FundedAccount(access_token=authenticated.access_token, account=funded)

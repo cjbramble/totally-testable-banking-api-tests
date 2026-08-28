@@ -6,11 +6,9 @@ from uuid import uuid4
 
 import pytest
 
-from totally_testable_banking_api_tests.account_selection import get_account_by_type
 from totally_testable_banking_api_tests.api_models import (
     ActivityDirection,
     ActivityKind,
-    ProductAccountType,
 )
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
@@ -22,6 +20,7 @@ from totally_testable_banking_api_tests.processor_control import (
     ProcessorOutcome,
     ProcessorScenario,
 )
+from totally_testable_banking_api_tests.setup_actions import UserAuthenticator
 from totally_testable_banking_api_tests.test_data import FundedAccount, RegisteredUser
 
 
@@ -31,18 +30,12 @@ def test_declined_deposit_appears_as_failed_activity_without_balance_change(
     banking_api_client: BankingApiClient,
     processor_control_client: ProcessorControlClient,
     registered_user: RegisteredUser,
+    authenticate_user: UserAuthenticator,
 ) -> None:
-    token = banking_api_client.login(
-        email=registered_user.email,
-        password=registered_user.password,
-    )
-    account = get_account_by_type(
-        banking_api_client.list_accounts(access_token=token.access_token),
-        ProductAccountType.CHECKING,
-    )
+    authenticated = authenticate_user(registered_user)
     account_before = banking_api_client.get_account(
-        account_id=account.id,
-        access_token=token.access_token,
+        account_id=authenticated.checking.id,
+        access_token=authenticated.access_token,
     )
     operation_key = f"deposit-decline-{uuid4()}"
     processor_control_client.configure_scenario(
@@ -52,28 +45,28 @@ def test_declined_deposit_appears_as_failed_activity_without_balance_change(
     )
 
     deposit = banking_api_client.create_deposit(
-        destination_account_id=account.id,
+        destination_account_id=authenticated.checking.id,
         amount="25.00",
-        access_token=token.access_token,
+        access_token=authenticated.access_token,
         idempotency_key=operation_key,
     )
     current = wait_for_terminal_status(
         lambda: banking_api_client.get_deposit(
             instruction_id=deposit.id,
-            access_token=token.access_token,
+            access_token=authenticated.access_token,
         ),
         operation_name="processor-backed deposit",
         terminal_statuses={"FAILED", "SETTLED"},
     )
 
     account_after = banking_api_client.get_account(
-        account_id=account.id,
-        access_token=token.access_token,
+        account_id=authenticated.checking.id,
+        access_token=authenticated.access_token,
     )
     matching_activity = [
         item
         for item in banking_api_client.list_activity(
-            access_token=token.access_token,
+            access_token=authenticated.access_token,
         ).items
         if item.operation_id == deposit.id
     ]
@@ -92,7 +85,7 @@ def test_declined_deposit_appears_as_failed_activity_without_balance_change(
     activity = matching_activity[0]
     assert activity.kind is ActivityKind.DEPOSIT
     assert activity.direction is ActivityDirection.CREDIT
-    assert activity.account_id == account.id
+    assert activity.account_id == authenticated.checking.id
     assert activity.amount == "25.00"
     assert activity.currency == "USD"
     assert activity.status == "FAILED"

@@ -11,7 +11,6 @@ from totally_testable_banking_api_tests.factories import (
     SettledDepositFactory,
 )
 from totally_testable_banking_api_tests.http_client import ApiClient
-from totally_testable_banking_api_tests.processor_control import ProcessorControlClient
 from totally_testable_banking_api_tests.scheduled_worker_control import ScheduledWorkerControl
 from totally_testable_banking_api_tests.settings import load_settings
 from totally_testable_banking_api_tests.test_data import FundedAccount, RegisteredUser
@@ -29,25 +28,6 @@ def banking_api_client() -> Iterator[BankingApiClient]:
 
     try:
         yield BankingApiClient(transport)
-    finally:
-        transport.close()
-
-
-@pytest.fixture
-def processor_control_client() -> Iterator[ProcessorControlClient]:
-    """Provide an isolated client for the local simulated-processor boundary."""
-
-    settings = load_settings()
-    transport = ApiClient(
-        base_url=settings.processor_control_url,
-        timeout=settings.request_timeout_seconds,
-    )
-
-    try:
-        yield ProcessorControlClient(
-            transport,
-            token=settings.processor_control_secret.get_secret_value(),
-        )
     finally:
         transport.close()
 

@@ -8,12 +8,13 @@ from totally_testable_banking_api_tests.http_client import (
     UnexpectedStatusError,
 )
 from totally_testable_banking_api_tests.settings import load_settings
+from totally_testable_banking_api_tests.test_data import RegisteredUser
 
 
 @pytest.mark.negative
 def test_invalid_password_is_rejected(
     banking_api_client: BankingApiClient,
-    registered_user,
+    registered_user: RegisteredUser,
 ) -> None:
     with pytest.raises(UnexpectedStatusError) as exc_info:
         banking_api_client.login(

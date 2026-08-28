@@ -6,12 +6,13 @@ import pytest
 
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
+from totally_testable_banking_api_tests.test_data import RegisteredUser
 
 
 @pytest.mark.negative
 def test_duplicate_email_registration_is_rejected(
     banking_api_client: BankingApiClient,
-    registered_user,
+    registered_user: RegisteredUser,
 ) -> None:
     with pytest.raises(UnexpectedStatusError) as exc_info:
         banking_api_client.register_user(
@@ -29,7 +30,7 @@ def test_duplicate_email_registration_is_rejected(
 @pytest.mark.negative
 def test_case_variant_email_registration_is_rejected(
     banking_api_client: BankingApiClient,
-    registered_user,
+    registered_user: RegisteredUser,
 ) -> None:
     with pytest.raises(UnexpectedStatusError) as exc_info:
         banking_api_client.register_user(

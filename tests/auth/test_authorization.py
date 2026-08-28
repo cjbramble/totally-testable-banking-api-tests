@@ -5,12 +5,14 @@ import pytest
 from totally_testable_banking_api_tests.account_selection import get_account_by_type
 from totally_testable_banking_api_tests.api_models import ProductAccountType
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
+from totally_testable_banking_api_tests.factories import RegisteredUserFactory
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
+from totally_testable_banking_api_tests.test_data import RegisteredUser
 
 
 def test_owner_can_retrieve_their_account(
     banking_api_client: BankingApiClient,
-    registered_user,
+    registered_user: RegisteredUser,
 ) -> None:
     token = banking_api_client.login(
         email=registered_user.email,
@@ -33,8 +35,8 @@ def test_owner_can_retrieve_their_account(
 @pytest.mark.negative
 def test_outsider_cannot_retrieve_another_users_account(
     banking_api_client: BankingApiClient,
-    registered_user,
-    registered_user_factory,
+    registered_user: RegisteredUser,
+    registered_user_factory: RegisteredUserFactory,
 ) -> None:
     owner_token = banking_api_client.login(
         email=registered_user.email,

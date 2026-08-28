@@ -7,7 +7,12 @@ import pytest
 from totally_testable_banking_api_tests.account_selection import get_account_by_type
 from totally_testable_banking_api_tests.api_models import ProductAccountType
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
+from totally_testable_banking_api_tests.factories import (
+    RegisteredUserFactory,
+    SettledDepositFactory,
+)
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
+from totally_testable_banking_api_tests.test_data import RegisteredUser
 
 
 @pytest.mark.negative
@@ -26,8 +31,8 @@ from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 )
 def test_invalid_amount_transfer_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
-    registered_user,
-    registered_user_factory,
+    registered_user: RegisteredUser,
+    registered_user_factory: RegisteredUserFactory,
     amount: str,
     expected_error_code: str,
 ) -> None:
@@ -119,8 +124,8 @@ def test_invalid_amount_transfer_is_rejected_without_financial_effect(
 )
 def test_invalid_idempotency_key_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
-    registered_user,
-    registered_user_factory,
+    registered_user: RegisteredUser,
+    registered_user_factory: RegisteredUserFactory,
     idempotency_key: str | None,
     expected_error_code: str,
 ) -> None:
@@ -203,9 +208,9 @@ def test_invalid_idempotency_key_is_rejected_without_financial_effect(
 @pytest.mark.negative
 def test_foreign_source_account_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
-    registered_user,
-    registered_user_factory,
-    create_settled_deposit,
+    registered_user: RegisteredUser,
+    registered_user_factory: RegisteredUserFactory,
+    create_settled_deposit: SettledDepositFactory,
 ) -> None:
     owner_token = banking_api_client.login(
         email=registered_user.email,
@@ -300,8 +305,8 @@ def test_foreign_source_account_is_rejected_without_financial_effect(
 @pytest.mark.negative
 def test_unknown_destination_account_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
-    registered_user,
-    create_settled_deposit,
+    registered_user: RegisteredUser,
+    create_settled_deposit: SettledDepositFactory,
 ) -> None:
     sender_token = banking_api_client.login(
         email=registered_user.email,
@@ -361,8 +366,8 @@ def test_unknown_destination_account_is_rejected_without_financial_effect(
 @pytest.mark.negative
 def test_self_transfer_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
-    registered_user,
-    create_settled_deposit,
+    registered_user: RegisteredUser,
+    create_settled_deposit: SettledDepositFactory,
 ) -> None:
     token = banking_api_client.login(
         email=registered_user.email,
@@ -420,9 +425,9 @@ def test_self_transfer_is_rejected_without_financial_effect(
 @pytest.mark.negative
 def test_transfer_exceeding_available_balance_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
-    registered_user,
-    registered_user_factory,
-    create_settled_deposit,
+    registered_user: RegisteredUser,
+    registered_user_factory: RegisteredUserFactory,
+    create_settled_deposit: SettledDepositFactory,
 ) -> None:
     sender_token = banking_api_client.login(
         email=registered_user.email,
@@ -517,8 +522,8 @@ def test_transfer_exceeding_available_balance_is_rejected_without_financial_effe
 @pytest.mark.negative
 def test_transfer_missing_destination_is_rejected_without_financial_effect(
     banking_api_client: BankingApiClient,
-    registered_user,
-    create_settled_deposit,
+    registered_user: RegisteredUser,
+    create_settled_deposit: SettledDepositFactory,
 ) -> None:
     sender_token = banking_api_client.login(
         email=registered_user.email,

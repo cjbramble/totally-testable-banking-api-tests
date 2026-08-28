@@ -8,15 +8,20 @@ import pytest
 from totally_testable_banking_api_tests.account_selection import get_account_by_type
 from totally_testable_banking_api_tests.api_models import ProductAccountType
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
+from totally_testable_banking_api_tests.factories import (
+    RegisteredUserFactory,
+    SettledDepositFactory,
+)
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
+from totally_testable_banking_api_tests.test_data import RegisteredUser
 
 
 @pytest.mark.invariant
 def test_p2p_transfer_moves_exact_amount_between_accounts(
     banking_api_client: BankingApiClient,
-    registered_user,
-    registered_user_factory,
-    create_settled_deposit,
+    registered_user: RegisteredUser,
+    registered_user_factory: RegisteredUserFactory,
+    create_settled_deposit: SettledDepositFactory,
 ) -> None:
     sender_token = banking_api_client.login(
         email=registered_user.email,
@@ -95,9 +100,9 @@ def test_p2p_transfer_moves_exact_amount_between_accounts(
 @pytest.mark.negative
 def test_outsider_cannot_retrieve_another_users_transfer(
     banking_api_client: BankingApiClient,
-    registered_user,
-    registered_user_factory,
-    create_settled_deposit,
+    registered_user: RegisteredUser,
+    registered_user_factory: RegisteredUserFactory,
+    create_settled_deposit: SettledDepositFactory,
 ) -> None:
     owner_token = banking_api_client.login(
         email=registered_user.email,

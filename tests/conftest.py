@@ -11,6 +11,7 @@ from totally_testable_banking_api_tests.http_client import ApiClient
 from totally_testable_banking_api_tests.settings import load_settings
 from totally_testable_banking_api_tests.setup_actions import (
     SettledDepositCreator,
+    UserAuthenticator,
     UserRegistrar,
 )
 from totally_testable_banking_api_tests.test_data import FundedAccount, RegisteredUser
@@ -48,6 +49,15 @@ def registered_user(
     """Register one uniquely named user through the normal product API."""
 
     return register_user()
+
+
+@pytest.fixture
+def authenticate_user(
+    banking_api_client: BankingApiClient,
+) -> UserAuthenticator:
+    """Provide a callable that authenticates a registered user and loads their accounts."""
+
+    return UserAuthenticator(banking_api_client)
 
 
 @pytest.fixture

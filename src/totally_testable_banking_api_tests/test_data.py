@@ -15,6 +15,16 @@ class RegisteredUser:
 
 
 @dataclass(frozen=True)
+class AuthenticatedUser:
+    """Registered user with a bearer token and both product accounts."""
+
+    registered_user: RegisteredUser
+    access_token: str
+    checking: AccountResponse
+    savings: AccountResponse
+
+
+@dataclass(frozen=True)
 class FundedAccount:
     """Authenticated checking account whose funding deposit has settled."""
 

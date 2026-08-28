@@ -52,7 +52,7 @@ class UserAuthenticator:
         )
         accounts = self._banking_api_client.list_accounts(access_token=token.access_token)
         return AuthenticatedUser(
-            registered_user=registered_user,
+            user=registered_user.user,
             access_token=token.access_token,
             checking=get_account_by_type(accounts, ProductAccountType.CHECKING),
             savings=get_account_by_type(accounts, ProductAccountType.SAVINGS),

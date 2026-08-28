@@ -63,7 +63,7 @@ def test_authenticate_user_logs_in_and_selects_both_accounts() -> None:
 
     assert client.login_credentials == ("user@example.com", "test-password")
     assert client.account_access_token == "access-token"
-    assert authenticated.registered_user is registered_user
+    assert authenticated.user is registered_user.user
     assert authenticated.access_token == "access-token"
     assert authenticated.checking.id == UUID(int=1)
     assert authenticated.savings.id == UUID(int=2)

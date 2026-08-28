@@ -18,7 +18,7 @@ class RegisteredUser:
 class AuthenticatedUser:
     """Registered user with a bearer token and both product accounts."""
 
-    registered_user: RegisteredUser
+    user: UserResponse
     access_token: str
     checking: AccountResponse
     savings: AccountResponse

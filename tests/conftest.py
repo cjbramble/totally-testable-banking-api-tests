@@ -1,16 +1,13 @@
 """Function-scoped fixtures for isolated users and API client lifecycle."""
 
 from collections.abc import Iterator
-from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 import pytest
 
 from totally_testable_banking_api_tests.api_models import (
-    AccountResponse,
     DepositResponse,
     ProductAccountType,
-    UserResponse,
 )
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import ApiClient
@@ -18,23 +15,7 @@ from totally_testable_banking_api_tests.operation_polling import wait_for_settle
 from totally_testable_banking_api_tests.processor_control import ProcessorControlClient
 from totally_testable_banking_api_tests.scheduled_worker_control import ScheduledWorkerControl
 from totally_testable_banking_api_tests.settings import load_settings
-
-
-@dataclass(frozen=True)
-class RegisteredUser:
-    """Immutable registration result plus credentials needed by later actions."""
-
-    user: UserResponse
-    email: str
-    password: str
-
-
-@dataclass(frozen=True)
-class FundedAccount:
-    """Authenticated checking account whose funding deposit has settled."""
-
-    access_token: str
-    account: AccountResponse
+from totally_testable_banking_api_tests.test_data import FundedAccount, RegisteredUser
 
 
 class RegisteredUserFactory:

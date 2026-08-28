@@ -21,6 +21,7 @@ from totally_testable_banking_api_tests.processor_control import (
     ProcessorOutcome,
     ProcessorScenario,
 )
+from totally_testable_banking_api_tests.test_data import FundedAccount, RegisteredUser
 
 
 @pytest.mark.contract
@@ -28,7 +29,7 @@ from totally_testable_banking_api_tests.processor_control import (
 def test_declined_deposit_appears_as_failed_activity_without_balance_change(
     banking_api_client: BankingApiClient,
     processor_control_client: ProcessorControlClient,
-    registered_user,
+    registered_user: RegisteredUser,
 ) -> None:
     token = banking_api_client.login(
         email=registered_user.email,
@@ -106,7 +107,7 @@ def test_declined_deposit_appears_as_failed_activity_without_balance_change(
 def test_declined_withdrawal_appears_as_failed_activity_without_balance_change(
     banking_api_client: BankingApiClient,
     processor_control_client: ProcessorControlClient,
-    funded_account,
+    funded_account: FundedAccount,
 ) -> None:
     account_before = banking_api_client.get_account(
         account_id=funded_account.account.id,
@@ -173,7 +174,7 @@ def test_declined_withdrawal_appears_as_failed_activity_without_balance_change(
 def test_pending_withdrawal_reserves_available_balance_until_settlement(
     banking_api_client: BankingApiClient,
     processor_control_client: ProcessorControlClient,
-    funded_account,
+    funded_account: FundedAccount,
 ) -> None:
     withdrawal_amount = Decimal("25.00")
     account_before = banking_api_client.get_account(
@@ -248,7 +249,7 @@ def test_pending_withdrawal_reserves_available_balance_until_settlement(
 def test_duplicate_processor_callback_has_one_withdrawal_effect(
     banking_api_client: BankingApiClient,
     processor_control_client: ProcessorControlClient,
-    funded_account,
+    funded_account: FundedAccount,
 ) -> None:
     withdrawal_amount = Decimal("25.00")
     account_before = banking_api_client.get_account(

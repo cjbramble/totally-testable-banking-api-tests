@@ -1,6 +1,8 @@
 """Typed data shared by API test fixtures and test functions."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
+from uuid import UUID
 
 from totally_testable_banking_api_tests.api_models import AccountResponse, UserResponse
 
@@ -30,3 +32,26 @@ class FundedAccount:
 
     access_token: str
     account: AccountResponse
+
+
+@dataclass(frozen=True)
+class FundedTransferContext:
+    """Participants, credentials, and accounts for one isolated transfer test."""
+
+    sender_access_token: str
+    recipient_access_token: str
+    source_account: AccountResponse
+    destination_account: AccountResponse
+
+
+@dataclass(frozen=True)
+class FundedActivityUser:
+    """Authenticated user with funded accounts and the funding operation identity."""
+
+    access_token: str
+    checking: AccountResponse
+    savings: AccountResponse
+    deposit_id: UUID
+
+
+type ActivityUserFunder = Callable[[RegisteredUser], FundedActivityUser]

@@ -11,7 +11,6 @@ from totally_testable_banking_api_tests.factories import (
     SettledDepositFactory,
 )
 from totally_testable_banking_api_tests.http_client import ApiClient
-from totally_testable_banking_api_tests.scheduled_worker_control import ScheduledWorkerControl
 from totally_testable_banking_api_tests.settings import load_settings
 from totally_testable_banking_api_tests.test_data import FundedAccount, RegisteredUser
 
@@ -30,14 +29,6 @@ def banking_api_client() -> Iterator[BankingApiClient]:
         yield BankingApiClient(transport)
     finally:
         transport.close()
-
-
-@pytest.fixture
-def scheduled_worker_control() -> ScheduledWorkerControl:
-    """Provide operation-scoped access to the local scheduled-transfer worker."""
-
-    settings = load_settings()
-    return ScheduledWorkerControl(settings.sut_compose_file)
 
 
 @pytest.fixture

@@ -52,6 +52,7 @@ esac
   fail "pytest is unavailable; run 'uv sync' in $test_repo_root"
 command -v docker >/dev/null 2>&1 || fail "Docker CLI is unavailable"
 docker compose version >/dev/null 2>&1 || fail "Docker Compose is unavailable"
+docker buildx version >/dev/null 2>&1 || fail "Docker Buildx is unavailable"
 docker info >/dev/null 2>&1 || fail "Docker daemon is unavailable"
 
 run_suffix="$(date -u +%Y%m%d%H%M%S)-$$"
@@ -81,38 +82,72 @@ if [[ "$mode" == "--preflight" ]]; then
   exit 0
 fi
 
-if [[ "$test_mode" == true ]]; then
-  [[ -x "$test_repo_root/.venv/bin/ruff" ]] || fail "Ruff is unavailable; run 'uv sync'"
-  [[ -x "$test_repo_root/.venv/bin/mypy" ]] || fail "mypy is unavailable; run 'uv sync'"
-
-  printf 'Running static quality checks\n'
-  (
-    cd "$test_repo_root"
-    .venv/bin/ruff check .
-    .venv/bin/ruff format --check .
-    .venv/bin/mypy
-  )
-fi
-
+mkdir -p "$artifact_dir"
+current_phase="runner initialization"
 cleanup_enabled=false
+
+run_logged() {
+  local log_name="$1"
+  shift
+  "$@" 2>&1 | tee "$artifact_dir/$log_name"
+}
+
+run_static_quality_checks() {
+  cd "$test_repo_root"
+  .venv/bin/ruff check .
+  .venv/bin/ruff format --check .
+  .venv/bin/mypy
+}
+
+redact_artifact_secrets() {
+  "$test_repo_root/.venv/bin/python" - "$artifact_dir" "$PROCESSOR_CONTROL_SECRET" <<'PY'
+from pathlib import Path
+import sys
+
+artifact_dir = Path(sys.argv[1])
+secret = sys.argv[2]
+
+for path in artifact_dir.rglob("*"):
+    if not path.is_file():
+        continue
+    try:
+        content = path.read_text()
+    except UnicodeDecodeError:
+        continue
+    if secret in content:
+        path.write_text(content.replace(secret, "[REDACTED]"))
+PY
+}
+
 cleanup() {
   exit_status="$?"
   cleanup_status=0
   trap - EXIT INT TERM
 
-  if [[ "$cleanup_enabled" == true ]]; then
-    if [[ "$exit_status" -ne 0 && -d "$artifact_dir" ]]; then
+  if [[ "$exit_status" -ne 0 ]]; then
+    {
+      printf 'mode=%s\n' "$mode"
+      printf 'phase=%s\n' "$current_phase"
+      printf 'exit_status=%s\n' "$exit_status"
+      printf 'compose_project=%s\n' "$compose_project"
+    } >"$artifact_dir/failure-summary.txt"
+
+    if [[ "$cleanup_enabled" == true ]]; then
       printf 'Capturing Compose diagnostics in %s\n' "$artifact_dir"
       compose ps --all >"$artifact_dir/compose-ps.txt" 2>&1 || true
       compose logs --no-color >"$artifact_dir/compose.log" 2>&1 || true
     fi
+  fi
 
+  if [[ "$cleanup_enabled" == true ]]; then
     printf 'Removing hermetic Compose resources for %s\n' "$compose_project"
     compose down --volumes --remove-orphans || cleanup_status="$?"
     docker image rm "$BANK_API_IMAGE" >/dev/null 2>&1 || true
     docker image rm "$compose_project-mock-processor" >/dev/null 2>&1 || true
     docker image rm "$compose_project-processor-callback-worker" >/dev/null 2>&1 || true
   fi
+
+  redact_artifact_secrets || true
 
   if [[ "$exit_status" -eq 0 && "$cleanup_status" -ne 0 ]]; then
     exit_status="$cleanup_status"
@@ -124,24 +159,38 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-cleanup_enabled=true
+
+if [[ "$test_mode" == true ]]; then
+  [[ -x "$test_repo_root/.venv/bin/ruff" ]] || fail "Ruff is unavailable; run 'uv sync'"
+  [[ -x "$test_repo_root/.venv/bin/mypy" ]] || fail "mypy is unavailable; run 'uv sync'"
+
+  printf 'Running static quality checks\n'
+  current_phase="static quality checks"
+  run_logged "static-quality.log" run_static_quality_checks
+fi
 
 printf 'Building isolated migration images\n'
-compose build api mock-processor
+current_phase="migration image build"
+cleanup_enabled=true
+run_logged "migration-image-build.log" compose build api mock-processor
 
 if [[ "$mode" == "--application-check" || "$test_mode" == true ]]; then
   printf 'Building isolated callback worker image\n'
-  compose build processor-callback-worker
+  current_phase="callback worker image build"
+  run_logged "callback-worker-image-build.log" compose build processor-callback-worker
 fi
 
 printf 'Starting fresh database services\n'
-compose up --detach --wait postgres processor-postgres
+current_phase="database startup"
+run_logged "database-startup.log" compose up --detach --wait postgres processor-postgres
 
 printf 'Applying banking API migrations\n'
-compose run --rm --no-deps api alembic upgrade head
+current_phase="banking API migrations"
+run_logged "banking-api-migrations.log" compose run --rm --no-deps api alembic upgrade head
 
 printf 'Applying processor migrations\n'
-compose run --rm --no-deps mock-processor alembic upgrade head
+current_phase="processor migrations"
+run_logged "processor-migrations.log" compose run --rm --no-deps mock-processor alembic upgrade head
 
 printf 'Hermetic infrastructure check passed\n'
 
@@ -169,7 +218,8 @@ wait_for_url() {
 }
 
 printf 'Starting isolated application services\n'
-compose up --detach --wait --wait-timeout 60 \
+current_phase="application startup"
+run_logged "application-startup.log" compose up --detach --wait --wait-timeout 60 \
   api \
   mock-processor \
   worker \
@@ -187,6 +237,7 @@ processor_port="${processor_binding##*:}"
 export SUT_BASE_URL="http://127.0.0.1:$api_port"
 export PROCESSOR_CONTROL_URL="http://127.0.0.1:$processor_port"
 
+current_phase="application readiness"
 wait_for_url "banking API" "$SUT_BASE_URL/health/ready"
 wait_for_url "processor" "$PROCESSOR_CONTROL_URL/health/ready"
 
@@ -199,7 +250,6 @@ if [[ "$mode" == "--application-check" ]]; then
 fi
 
 export SUT_COMPOSE_FILE="$compose_file"
-mkdir -p "$artifact_dir"
 
 run_pytest() {
   local label="$1"
@@ -207,13 +257,14 @@ run_pytest() {
   shift 2
 
   printf 'Running %s\n' "$label"
+  current_phase="$label"
   (
     cd "$test_repo_root"
     .venv/bin/pytest \
       "$@" \
       --junitxml="$artifact_dir/$report_name" \
       -o "junit_suite_name=$label-$compose_project"
-  )
+  ) 2>&1 | tee "$artifact_dir/${report_name%.xml}.log"
 }
 
 case "$mode" in

@@ -11,13 +11,15 @@ from totally_testable_banking_api_tests.api_models import (
     ProductAccountType,
 )
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
+from totally_testable_banking_api_tests.factories import RegisteredUserFactory
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
+from totally_testable_banking_api_tests.test_data import RegisteredUser
 
 
 def test_deposit_request_for_owned_account_is_accepted(
     banking_api_client: BankingApiClient,
-    registered_user,
+    registered_user: RegisteredUser,
 ) -> None:
     token = banking_api_client.login(
         email=registered_user.email,
@@ -46,7 +48,7 @@ def test_deposit_request_for_owned_account_is_accepted(
 
 def test_created_deposit_can_be_retrieved_by_its_owner(
     banking_api_client: BankingApiClient,
-    registered_user,
+    registered_user: RegisteredUser,
 ) -> None:
     token = banking_api_client.login(
         email=registered_user.email,
@@ -78,8 +80,8 @@ def test_created_deposit_can_be_retrieved_by_its_owner(
 @pytest.mark.negative
 def test_outsider_cannot_retrieve_another_users_deposit(
     banking_api_client: BankingApiClient,
-    registered_user,
-    registered_user_factory,
+    registered_user: RegisteredUser,
+    registered_user_factory: RegisteredUserFactory,
 ) -> None:
     owner_token = banking_api_client.login(
         email=registered_user.email,
@@ -119,7 +121,7 @@ def test_outsider_cannot_retrieve_another_users_deposit(
 @pytest.mark.invariant
 def test_deposit_settlement_updates_balances_and_activity(
     banking_api_client: BankingApiClient,
-    registered_user,
+    registered_user: RegisteredUser,
 ) -> None:
     token = banking_api_client.login(
         email=registered_user.email,

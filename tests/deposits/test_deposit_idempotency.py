@@ -8,14 +8,16 @@ import pytest
 from totally_testable_banking_api_tests.account_selection import get_account_by_type
 from totally_testable_banking_api_tests.api_models import ProductAccountType
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
+from totally_testable_banking_api_tests.factories import RegisteredUserFactory
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 from totally_testable_banking_api_tests.operation_polling import wait_for_settlement
+from totally_testable_banking_api_tests.test_data import RegisteredUser
 
 
 @pytest.mark.invariant
 def test_replayed_deposit_has_one_identity_and_one_financial_effect(
     banking_api_client: BankingApiClient,
-    registered_user,
+    registered_user: RegisteredUser,
 ) -> None:
     token = banking_api_client.login(
         email=registered_user.email,
@@ -78,7 +80,7 @@ def test_replayed_deposit_has_one_identity_and_one_financial_effect(
 @pytest.mark.negative
 def test_changed_deposit_payload_with_reused_key_is_rejected_without_additional_effect(
     banking_api_client: BankingApiClient,
-    registered_user,
+    registered_user: RegisteredUser,
 ) -> None:
     token = banking_api_client.login(
         email=registered_user.email,
@@ -146,8 +148,8 @@ def test_changed_deposit_payload_with_reused_key_is_rejected_without_additional_
 @pytest.mark.invariant
 def test_two_users_can_use_the_same_deposit_key_independently(
     banking_api_client: BankingApiClient,
-    registered_user,
-    registered_user_factory,
+    registered_user: RegisteredUser,
+    registered_user_factory: RegisteredUserFactory,
 ) -> None:
     first_token = banking_api_client.login(
         email=registered_user.email,

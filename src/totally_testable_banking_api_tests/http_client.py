@@ -27,6 +27,18 @@ class UnexpectedStatusError(RuntimeError):
 
         super().__init__(f"{method} {self.url} returned HTTP {self.status_code}; {detail}")
 
+    @property
+    def error_code(self) -> str | None:
+        """Return the published API error code when the response has a valid envelope."""
+
+        return self.error.error.code if self.error is not None else None
+
+    @property
+    def error_message(self) -> str | None:
+        """Return the published API error message when the response has a valid envelope."""
+
+        return self.error.error.message if self.error is not None else None
+
 
 class ApiClient:
     def __init__(

@@ -142,9 +142,8 @@ def test_request_parses_published_error_envelope() -> None:
         client.close()
 
     error = exc_info.value
-    assert error.error is not None
-    assert error.error.error.code == "INSUFFICIENT_FUNDS"
-    assert error.error.error.message == "Available balance is insufficient."
+    assert error.error_code == "INSUFFICIENT_FUNDS"
+    assert error.error_message == "Available balance is insufficient."
     assert "code='INSUFFICIENT_FUNDS'" in str(error)
 
 
@@ -171,5 +170,7 @@ def test_request_retains_diagnostics_for_malformed_error_body() -> None:
 
     error = exc_info.value
     assert error.error is None
+    assert error.error_code is None
+    assert error.error_message is None
     assert error.body == "not-json"
     assert "body='not-json'" in str(error)

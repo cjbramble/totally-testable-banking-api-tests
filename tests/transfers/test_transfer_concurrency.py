@@ -19,6 +19,7 @@ from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import UnexpectedStatusError
 from totally_testable_banking_api_tests.setup_actions import (
     SettledDepositCreator,
+    UserAuthenticator,
     UserRegistrar,
 )
 from totally_testable_banking_api_tests.test_data import FundedAccount
@@ -31,18 +32,15 @@ class _AuthenticatedCheckingAccount:
 
 
 def _register_checking_account(
-    banking_api_client: BankingApiClient,
     register_user: UserRegistrar,
+    authenticate_user: UserAuthenticator,
 ) -> _AuthenticatedCheckingAccount:
-    user = register_user(display_name="Recipient Test User")
-    token = banking_api_client.login(email=user.email, password=user.password)
-    account = get_account_by_type(
-        banking_api_client.list_accounts(access_token=token.access_token),
-        ProductAccountType.CHECKING,
+    authenticated = authenticate_user(
+        register_user(display_name="Recipient Test User"),
     )
     return _AuthenticatedCheckingAccount(
-        access_token=token.access_token,
-        account=account,
+        access_token=authenticated.access_token,
+        account=authenticated.checking,
     )
 
 
@@ -140,10 +138,11 @@ def test_competing_transfers_cannot_overspend_one_account(
     banking_api_client: BankingApiClient,
     funded_account: FundedAccount,
     register_user: UserRegistrar,
+    authenticate_user: UserAuthenticator,
 ) -> None:
     recipients = [
-        _register_checking_account(banking_api_client, register_user),
-        _register_checking_account(banking_api_client, register_user),
+        _register_checking_account(register_user, authenticate_user),
+        _register_checking_account(register_user, authenticate_user),
     ]
     sender_before = banking_api_client.get_account(
         account_id=funded_account.account.id,
@@ -210,7 +209,6 @@ def test_competing_transfers_cannot_overspend_one_account(
     assert posted[0].status == "POSTED"
     assert len(rejected) == 1
     assert rejected[0].status_code == 409
-    assert rejected[0].error is not None
     assert rejected[0].error_code == "INSUFFICIENT_FUNDS"
     assert Decimal(sender_after.settled_balance) == (
         Decimal(sender_before.settled_balance) - transfer_amount
@@ -247,6 +245,7 @@ def test_opposing_direction_transfers_both_post_with_coherent_balances(
     banking_api_client: BankingApiClient,
     funded_account: FundedAccount,
     register_user: UserRegistrar,
+    authenticate_user: UserAuthenticator,
     create_settled_deposit: SettledDepositCreator,
 ) -> None:
     account_a = _AuthenticatedCheckingAccount(
@@ -256,7 +255,7 @@ def test_opposing_direction_transfers_both_post_with_coherent_balances(
     account_b = _fund_checking_account(
         banking_api_client,
         create_settled_deposit,
-        _register_checking_account(banking_api_client, register_user),
+        _register_checking_account(register_user, authenticate_user),
         amount="100.00",
     )
     activity_a_before = banking_api_client.list_activity(

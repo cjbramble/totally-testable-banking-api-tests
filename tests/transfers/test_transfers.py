@@ -87,54 +87,35 @@ def test_outsider_cannot_retrieve_another_users_transfer(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
     register_user: UserRegistrar,
+    authenticate_user: UserAuthenticator,
     create_settled_deposit: SettledDepositCreator,
 ) -> None:
-    owner_token = banking_api_client.login(
-        email=registered_user.email,
-        password=registered_user.password,
-    )
-    owner_account = get_account_by_type(
-        banking_api_client.list_accounts(
-            access_token=owner_token.access_token,
-        ),
-        ProductAccountType.CHECKING,
-    )
-
-    recipient = register_user(display_name="Recipient Test User")
-    recipient_token = banking_api_client.login(
-        email=recipient.email,
-        password=recipient.password,
-    )
-    recipient_account = get_account_by_type(
-        banking_api_client.list_accounts(
-            access_token=recipient_token.access_token,
-        ),
-        ProductAccountType.CHECKING,
+    owner = authenticate_user(registered_user)
+    recipient = authenticate_user(
+        register_user(display_name="Recipient Test User"),
     )
 
     create_settled_deposit(
-        destination_account_id=owner_account.id,
-        access_token=owner_token.access_token,
+        destination_account_id=owner.checking.id,
+        access_token=owner.access_token,
     )
 
     transfer = banking_api_client.create_transfer(
-        source_account_id=owner_account.id,
-        destination_account_id=recipient_account.id,
+        source_account_id=owner.checking.id,
+        destination_account_id=recipient.checking.id,
         amount="25.00",
-        access_token=owner_token.access_token,
+        access_token=owner.access_token,
         idempotency_key=f"transfer-{uuid4()}",
     )
 
-    outsider = register_user(display_name="Outsider Test User")
-    outsider_token = banking_api_client.login(
-        email=outsider.email,
-        password=outsider.password,
+    outsider = authenticate_user(
+        register_user(display_name="Outsider Test User"),
     )
 
     with pytest.raises(UnexpectedStatusError) as exc_info:
         banking_api_client.get_transfer(
             transfer_id=transfer.id,
-            access_token=outsider_token.access_token,
+            access_token=outsider.access_token,
         )
 
     error = exc_info.value

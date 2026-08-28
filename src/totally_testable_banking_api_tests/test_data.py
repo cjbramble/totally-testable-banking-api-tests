@@ -35,6 +35,16 @@ class FundedAccount:
 
 
 @dataclass(frozen=True)
+class FundedTransferContext:
+    """Participants, credentials, and accounts for one isolated transfer test."""
+
+    sender_access_token: str
+    recipient_access_token: str
+    source_account: AccountResponse
+    destination_account: AccountResponse
+
+
+@dataclass(frozen=True)
 class FundedActivityUser:
     """Authenticated user with funded accounts and the funding operation identity."""
 

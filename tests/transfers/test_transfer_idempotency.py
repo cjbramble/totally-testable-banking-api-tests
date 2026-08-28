@@ -7,16 +7,15 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from totally_testable_banking_api_tests.account_selection import get_account_by_type
 from totally_testable_banking_api_tests.api_models import (
     AccountResponse,
-    ProductAccountType,
 )
 from totally_testable_banking_api_tests.banking_api import BankingApiClient
 from totally_testable_banking_api_tests.http_client import ApiClient, UnexpectedStatusError
 from totally_testable_banking_api_tests.settings import load_settings
 from totally_testable_banking_api_tests.setup_actions import (
     SettledDepositCreator,
+    UserAuthenticator,
     UserRegistrar,
 )
 from totally_testable_banking_api_tests.test_data import RegisteredUser
@@ -58,43 +57,27 @@ def funded_transfer_context(
     banking_api_client: BankingApiClient,
     registered_user: RegisteredUser,
     register_user: UserRegistrar,
+    authenticate_user: UserAuthenticator,
     create_settled_deposit: SettledDepositCreator,
 ) -> FundedTransferContext:
     """Create fresh participants with a settled sender balance for each test."""
 
-    sender_token = banking_api_client.login(
-        email=registered_user.email,
-        password=registered_user.password,
-    )
-    source_account = get_account_by_type(
-        banking_api_client.list_accounts(
-            access_token=sender_token.access_token,
-        ),
-        ProductAccountType.CHECKING,
-    )
+    sender = authenticate_user(registered_user)
 
     create_settled_deposit(
-        destination_account_id=source_account.id,
-        access_token=sender_token.access_token,
+        destination_account_id=sender.checking.id,
+        access_token=sender.access_token,
     )
 
-    recipient = register_user(display_name="Recipient Test User")
-    recipient_token = banking_api_client.login(
-        email=recipient.email,
-        password=recipient.password,
-    )
-    destination_account = get_account_by_type(
-        banking_api_client.list_accounts(
-            access_token=recipient_token.access_token,
-        ),
-        ProductAccountType.CHECKING,
+    recipient = authenticate_user(
+        register_user(display_name="Recipient Test User"),
     )
 
     return FundedTransferContext(
-        sender_access_token=sender_token.access_token,
-        recipient_access_token=recipient_token.access_token,
-        source_account=source_account,
-        destination_account=destination_account,
+        sender_access_token=sender.access_token,
+        recipient_access_token=recipient.access_token,
+        source_account=sender.checking,
+        destination_account=recipient.checking,
     )
 
 

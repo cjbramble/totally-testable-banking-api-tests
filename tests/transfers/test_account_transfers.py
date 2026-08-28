@@ -360,8 +360,7 @@ def test_completed_account_transfer_cannot_be_canceled(
     error = exc_info.value
 
     assert error.status_code == 409
-    assert error.error is not None
-    assert error.error.error.code == "SCHEDULED_TRANSFER_NOT_CANCELABLE"
+    assert error.error_code == "SCHEDULED_TRANSFER_NOT_CANCELABLE"
     assert retrieved.id == posted.id
     assert retrieved.status == "POSTED"
     assert retrieved.completed_at == posted.completed_at
@@ -416,8 +415,7 @@ def test_own_account_transfer_rejects_same_source_and_destination(
     error = exc_info.value
 
     assert error.status_code == 422
-    assert error.error is not None
-    assert error.error.error.code == "OWN_ACCOUNT_TRANSFER_REQUIRES_DISTINCT_ACCOUNTS"
+    assert error.error_code == "OWN_ACCOUNT_TRANSFER_REQUIRES_DISTINCT_ACCOUNTS"
     assert (
         account_after.settled_balance,
         account_after.available_balance,
@@ -480,8 +478,7 @@ def test_own_account_transfer_rejects_foreign_destination(
     error = exc_info.value
 
     assert error.status_code == 404
-    assert error.error is not None
-    assert error.error.error.code == "ACCOUNT_NOT_FOUND"
+    assert error.error_code == "ACCOUNT_NOT_FOUND"
     assert (
         owner_checking_after.settled_balance,
         owner_checking_after.available_balance,
@@ -557,8 +554,7 @@ def test_own_account_transfer_rejects_foreign_source(
     error = exc_info.value
 
     assert error.status_code == 404
-    assert error.error is not None
-    assert error.error.error.code == "ACCOUNT_NOT_FOUND"
+    assert error.error_code == "ACCOUNT_NOT_FOUND"
     assert (
         owner_checking_after.settled_balance,
         owner_checking_after.available_balance,
@@ -633,8 +629,7 @@ def test_scheduled_account_transfer_rejects_non_future_date(
     error = exc_info.value
 
     assert error.status_code == 422
-    assert error.error is not None
-    assert error.error.error.code == "SCHEDULED_DATE_MUST_BE_FUTURE"
+    assert error.error_code == "SCHEDULED_DATE_MUST_BE_FUTURE"
     assert (
         checking_after.settled_balance,
         checking_after.available_balance,

@@ -211,7 +211,7 @@ def test_competing_transfers_cannot_overspend_one_account(
     assert len(rejected) == 1
     assert rejected[0].status_code == 409
     assert rejected[0].error is not None
-    assert rejected[0].error.error.code == "INSUFFICIENT_FUNDS"
+    assert rejected[0].error_code == "INSUFFICIENT_FUNDS"
     assert Decimal(sender_after.settled_balance) == (
         Decimal(sender_before.settled_balance) - transfer_amount
     )

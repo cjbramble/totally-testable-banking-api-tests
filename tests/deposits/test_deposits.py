@@ -114,8 +114,7 @@ def test_outsider_cannot_retrieve_another_users_deposit(
 
     error = exc_info.value
     assert error.status_code == 404
-    assert error.error is not None
-    assert error.error.error.code == "DEPOSIT_NOT_FOUND"
+    assert error.error_code == "DEPOSIT_NOT_FOUND"
 
 
 @pytest.mark.invariant

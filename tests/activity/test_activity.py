@@ -308,8 +308,7 @@ def test_malformed_activity_cursor_is_rejected(
 
     error = exc_info.value
     assert error.status_code == 422
-    assert error.error is not None
-    assert error.error.error.code == "INVALID_CURSOR"
+    assert error.error_code == "INVALID_CURSOR"
 
 
 @pytest.mark.negative
@@ -350,8 +349,7 @@ def test_altered_activity_cursor_is_rejected(
 
     error = exc_info.value
     assert error.status_code == 422
-    assert error.error is not None
-    assert error.error.error.code == "INVALID_CURSOR"
+    assert error.error_code == "INVALID_CURSOR"
 
 
 @pytest.mark.invariant
@@ -447,8 +445,7 @@ def test_activity_limit_rejects_values_outside_documented_range(
 
     error = exc_info.value
     assert error.status_code == 422
-    assert error.error is not None
-    assert error.error.error.code == "VALIDATION_ERROR"
+    assert error.error_code == "VALIDATION_ERROR"
 
 
 @pytest.mark.invariant

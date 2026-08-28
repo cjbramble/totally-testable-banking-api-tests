@@ -82,8 +82,7 @@ def test_invalid_amount_transfer_is_rejected_without_financial_effect(
 
     error = exc_info.value
     assert error.status_code == 422
-    assert error.error is not None
-    assert error.error.error.code == expected_error_code
+    assert error.error_code == expected_error_code
 
     sender_after = get_account_by_type(
         banking_api_client.list_accounts(
@@ -175,8 +174,7 @@ def test_invalid_idempotency_key_is_rejected_without_financial_effect(
 
     error = exc_info.value
     assert error.status_code == 400
-    assert error.error is not None
-    assert error.error.error.code == expected_error_code
+    assert error.error_code == expected_error_code
 
     sender_after = get_account_by_type(
         banking_api_client.list_accounts(
@@ -266,8 +264,7 @@ def test_foreign_source_account_is_rejected_without_financial_effect(
 
     error = exc_info.value
     assert error.status_code == 404
-    assert error.error is not None
-    assert error.error.error.code == "ACCOUNT_NOT_FOUND"
+    assert error.error_code == "ACCOUNT_NOT_FOUND"
 
     source_after = banking_api_client.get_account(
         account_id=source_account.id,
@@ -342,8 +339,7 @@ def test_unknown_destination_account_is_rejected_without_financial_effect(
 
     error = exc_info.value
     assert error.status_code == 404
-    assert error.error is not None
-    assert error.error.error.code == "RECIPIENT_ACCOUNT_NOT_FOUND"
+    assert error.error_code == "RECIPIENT_ACCOUNT_NOT_FOUND"
 
     source_after = banking_api_client.get_account(
         account_id=source_account.id,
@@ -401,8 +397,7 @@ def test_self_transfer_is_rejected_without_financial_effect(
 
     error = exc_info.value
     assert error.status_code == 422
-    assert error.error is not None
-    assert error.error.error.code == "P2P_REQUIRES_DIFFERENT_USERS"
+    assert error.error_code == "P2P_REQUIRES_DIFFERENT_USERS"
 
     account_after = banking_api_client.get_account(
         account_id=account.id,
@@ -483,8 +478,7 @@ def test_transfer_exceeding_available_balance_is_rejected_without_financial_effe
 
     error = exc_info.value
     assert error.status_code == 409
-    assert error.error is not None
-    assert error.error.error.code == "INSUFFICIENT_FUNDS"
+    assert error.error_code == "INSUFFICIENT_FUNDS"
 
     source_after = banking_api_client.get_account(
         account_id=source_account.id,
@@ -560,8 +554,7 @@ def test_transfer_missing_destination_is_rejected_without_financial_effect(
 
     error = exc_info.value
     assert error.status_code == 422
-    assert error.error is not None
-    assert error.error.error.code == "VALIDATION_ERROR"
+    assert error.error_code == "VALIDATION_ERROR"
 
     source_after = banking_api_client.get_account(
         account_id=source_account.id,

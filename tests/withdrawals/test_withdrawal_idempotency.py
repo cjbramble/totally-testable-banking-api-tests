@@ -139,8 +139,7 @@ def test_changed_withdrawal_payload_with_reused_key_is_rejected_without_addition
 
     error = exc_info.value
     assert error.status_code == 409
-    assert error.error is not None
-    assert error.error.error.code == "IDEMPOTENCY_PAYLOAD_MISMATCH"
+    assert error.error_code == "IDEMPOTENCY_PAYLOAD_MISMATCH"
 
     account_after_rejection = banking_api_client.get_account(
         account_id=account.id,

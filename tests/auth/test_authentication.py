@@ -24,8 +24,7 @@ def test_invalid_password_is_rejected(
 
     error = exc_info.value
     assert error.status_code == 401
-    assert error.error is not None
-    assert error.error.error.code == "INVALID_CREDENTIALS"
+    assert error.error_code == "INVALID_CREDENTIALS"
 
 
 @pytest.mark.negative
@@ -44,9 +43,8 @@ def test_missing_bearer_credentials_are_rejected() -> None:
 
     error = exc_info.value
     assert error.status_code == 401
-    assert error.error is not None
-    assert error.error.error.code == "AUTHENTICATION_REQUIRED"
-    assert error.error.error.message
+    assert error.error_code == "AUTHENTICATION_REQUIRED"
+    assert error.error_message
 
 
 @pytest.mark.negative
@@ -58,5 +56,4 @@ def test_invalid_bearer_token_is_rejected(
 
     error = exc_info.value
     assert error.status_code == 401
-    assert error.error is not None
-    assert error.error.error.code == "AUTHENTICATION_REQUIRED"
+    assert error.error_code == "AUTHENTICATION_REQUIRED"
